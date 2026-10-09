@@ -50,7 +50,7 @@ jobs:
       - name: Repo scanner (shapes of the credentials that leaked in the source project)
         run: python scripts/scan_secrets.py
       - name: Gitleaks (full history)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   dependencies:
