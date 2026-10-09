@@ -1,0 +1,5 @@
+# Security-sensitive code needs an owner's review.
+/backend/nova/tenancy/   @digitalfoxagencycare-design
+/backend/nova/core/      @digitalfoxagencycare-design
+/config/                 @digitalfoxagencycare-design
+/.github/                @digitalfoxagencycare-design

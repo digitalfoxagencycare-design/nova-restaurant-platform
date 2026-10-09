@@ -4,7 +4,7 @@ One **master Nova operations dashboard** and a family of **mobile apps** that an
 
 Derived from a real, working single-restaurant system (`HyderabadiIrani`): storefront, POS, kitchen display, delivery app, customer app, loyalty, coupons, GST reports, WhatsApp OTP/updates. This repo turns it into a **multi-tenant, configurable product**.
 
-> Status: **analysis, standardization plan, target architecture and design prototype**. No production code has been copied yet. Nothing here contains credentials.
+> Status: **Phases 0–1 done** (foundations + tenancy core, 61 tests). Analysis, plan and design prototype are in `docs/` and `design/`. No source-project code has been copied; nothing here contains credentials.
 
 ## Read in this order
 | # | Doc | What it answers |
@@ -28,3 +28,15 @@ Config schema: [`config/tenant.schema.json`](config/tenant.schema.json) and an e
 3. **Server decides money.** Prices, discounts, tax and totals are computed server-side (the source already does this well).
 4. **Offline-first at the counter.** Billing keeps working without internet and syncs idempotently.
 5. **No secrets in the repo.** Ever. Environment / secret manager only.
+
+## Run it
+```bash
+make install          # backend dependencies
+make check            # lint + secret scan + 61 tests
+cp backend/.env.example backend/.env   # then put real random keys in it
+python -m nova.cli create-platform-admin --email you@example.com   # prompts for a password; none is ever seeded
+make run              # http://localhost:8000/docs
+```
+What exists today: tenant model + validated config, a data layer that makes cross-tenant access impossible, login with
+refresh-token rotation, roles/permissions, invite-based onboarding, audit log, startup safety checks. See
+[docs/10-phase-0-1.md](docs/10-phase-0-1.md).
