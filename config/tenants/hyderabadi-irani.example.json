@@ -1,0 +1,46 @@
+{
+  "slug": "hyderabadi-irani",
+  "brand": {
+    "name": "Hyderabadi Irani",
+    "legal_name": "Hyderabadi Irani Food Court",
+    "tagline": "Authentic Hyderabadi Dum Biryani, Irani Chai, Osmania Biscuits",
+    "colors": { "background": "#F7F5F0", "foreground": "#1A1A1A", "primary": "#D45D48", "secondary": "#2A4736", "muted": "#E8E5DF" },
+    "fonts": { "heading": "Cormorant Garamond", "body": "IBM Plex Sans" }
+  },
+  "locale": { "currency": "INR", "timezone": "Asia/Kolkata", "country_code": "91", "phone_regex": "^[6-9]\\d{9}$", "languages": ["en", "te"] },
+  "tax": { "mode": "inclusive", "default_rate": 0.05 },
+  "operations": {
+    "business_day_start": "04:00",
+    "order_number_format": "{YYMMDD}-{seq:04}",
+    "stations": ["kitchen", "beverage", "bakery"],
+    "flows": {
+      "dine-in": ["placed", "preparing", "ready", "served", "completed"],
+      "takeaway": ["placed", "preparing", "ready", "completed"],
+      "delivery": ["placed", "preparing", "ready", "out_for_delivery", "delivered"]
+    }
+  },
+  "ordering": { "channels": ["dine-in", "takeaway", "delivery"], "dine_in": { "require_prepaid_for_self_order": true } },
+  "delivery": {
+    "max_km": 5,
+    "free_above": 499,
+    "fee_slabs": [ { "up_to_km": 2, "fee": 20 }, { "up_to_km": 3, "fee": 30 }, { "up_to_km": 4, "fee": 40 }, { "up_to_km": 5, "fee": 50 } ]
+  },
+  "payments": {
+    "methods": ["cash", "card", "upi", "cod", "razorpay"],
+    "cod": { "enabled": true, "disabled_windows": [ { "from": "22:00", "to": "06:00" } ] }
+  },
+  "loyalty": {
+    "enabled": true,
+    "earn_per_rupees": 100,
+    "coin_value": 1,
+    "welcome_bonus": 100,
+    "first_orders": { "count": 4, "discount": 25, "min_subtotal": 249 },
+    "min_redeem": 20,
+    "max_order_share": 0.5
+  },
+  "integrations": {
+    "whatsapp": { "project": "hyderabadi-irani", "otp_template": "novasaas_otp" },
+    "razorpay": { "secret_ref": "secrets/tenants/hyderabadi-irani/razorpay" },
+    "fcm": { "topic": "tenant-hyderabadi-irani" }
+  }
+}
