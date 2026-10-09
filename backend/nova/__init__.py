@@ -1,0 +1,1 @@
+"""Nova restaurant platform backend."""

@@ -1,0 +1,13 @@
+repos:
+  - repo: local
+    hooks:
+      - id: scan-secrets
+        name: scan for secrets
+        entry: python scripts/scan_secrets.py
+        language: system
+        pass_filenames: false
+      - id: ruff
+        name: ruff
+        entry: bash -c 'cd backend && ruff check .'
+        language: system
+        pass_filenames: false
