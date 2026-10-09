@@ -1,0 +1,5 @@
+# False positives: deliberately fake Razorpay-shaped strings used as test fixtures in commit ac9372d.
+# They were invented for the secret-scanner tests and are not credentials. Later commits assemble such
+# fixtures at runtime so no secret-looking literal remains in the tree; this only covers the earlier commit.
+ac9372dd5dc7c6ddb44d2473b851b28aa2151389:backend/tests/test_tenant_config.py:generic-api-key:42
+ac9372dd5dc7c6ddb44d2473b851b28aa2151389:backend/tests/test_secret_scan.py:generic-api-key:18
