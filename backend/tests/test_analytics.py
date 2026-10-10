@@ -3,7 +3,7 @@
 import pytest
 
 from .conftest import onboard
-from .test_pos import H, add, new_bill, make_user, set_pin  # noqa: F401  (set_pin kept for fixtures)
+from .test_pos import H, add, make_user, new_bill
 
 
 @pytest.fixture
