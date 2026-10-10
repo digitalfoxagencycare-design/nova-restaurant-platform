@@ -23,6 +23,11 @@ export const dict = {
     search_empty: "No dishes match your search", min: "min", about: "About", mins_away: "Away", fee: "Fee", up_to: "up to", km: "km", close: "Close", add_to_cart: "Add to cart", update_cart: "Update",
     sign_in_to_order: "Sign in to place your order", order_placed: "Order placed", thanks: "Thank you! We have received your order.", items_label: "Items", paid_note: "To pay",
     continue: "Continue", contact: "Contact", enter_code_title: "Open a restaurant", enter_code_hint: "Type the restaurant code from its link or QR.", open: "Open", delivering_to: "Deliver to", type_label: "Order type",
+    status_pending_payment: "Waiting for payment", pay_now: "Pay now", pay_amount: "Pay", pay_online: "Pay now (UPI, card, netbanking)", pay_how: "How do you want to pay?",
+    pay_cod_delivery: "Pay on delivery / at the counter", paid_online: "Paid online", payment_not_done: "Payment not completed", payment_not_done_hint: "Your order is saved but the restaurant will not start it until it is paid.",
+    try_again: "Try again", wait_pay: "Pay within", expired: "Expired", expired_hint: "This order was not paid in time and has been cancelled.", checking_payment: "We are checking your payment",
+    checking_payment_hint: "If money was taken from your account, your order will turn to Placed in a moment. You do not need to pay again.", refund_text: "Refund of {amt} is on its way",
+    wa_updates: "Send my order updates on WhatsApp", wa_note: "Messages come from Nova's WhatsApp number on the restaurant's behalf.", code_on_whatsapp: "We sent a code to your WhatsApp", code_via_whatsapp: "The code arrives on WhatsApp.", opening_payment: "Opening payment...", verifying_payment: "Confirming your payment...",
   },
   te: {
     order_online: "ఆన్‌లైన్‌లో ఆర్డర్ చేయండి", open_now: "ఆర్డర్లు తెరిచి ఉన్నాయి", paused: "ఆర్డర్లు నిలిపివేయబడ్డాయి", home: "హోమ్", search: "వెతుకు", orders: "ఆర్డర్లు", account: "ఖాతా",
@@ -42,6 +47,11 @@ export const dict = {
     empty_cart: "మీ కార్ట్ ఖాళీగా ఉంది", empty_cart_hint: "కొన్ని వంటకాలు జోడించండి.", browse_menu: "మెనూ చూడండి", add_address: "చిరునామా జోడించు", privacy: "గోప్యతా విధానం", terms: "ఉపయోగ నిబంధనలు",
     search_empty: "మీ శోధనకు వంటకాలు లేవు", min: "నిమి", about: "గురించి", close: "మూసివేయి", add_to_cart: "కార్ట్‌లో జోడించు", update_cart: "అప్‌డేట్",
     sign_in_to_order: "ఆర్డర్ చేయడానికి సైన్ ఇన్ చేయండి", order_placed: "ఆర్డర్ అయింది", thanks: "ధన్యవాదాలు! మీ ఆర్డర్ అందింది.", continue: "కొనసాగించు", contact: "సంప్రదించండి",
+    status_pending_payment: "చెల్లింపు కోసం వేచి ఉంది", pay_now: "ఇప్పుడే చెల్లించండి", pay_amount: "చెల్లించండి", pay_online: "ఇప్పుడే చెల్లించండి (UPI, కార్డ్, నెట్‌బ్యాంకింగ్)", pay_how: "ఎలా చెల్లించాలనుకుంటున్నారు?",
+    pay_cod_delivery: "డెలివరీ / కౌంటర్ వద్ద చెల్లింపు", paid_online: "ఆన్‌లైన్‌లో చెల్లించారు", payment_not_done: "చెల్లింపు పూర్తి కాలేదు", payment_not_done_hint: "మీ ఆర్డర్ సేవ్ అయింది, కానీ చెల్లించే వరకు రెస్టారెంట్ తయారీ మొదలుపెట్టదు.",
+    try_again: "మళ్లీ ప్రయత్నించండి", wait_pay: "చెల్లించాల్సిన సమయం", expired: "గడువు ముగిసింది", expired_hint: "సమయానికి చెల్లించకపోవడంతో ఈ ఆర్డర్ రద్దయింది.", checking_payment: "మేము మీ చెల్లింపును పరిశీలిస్తున్నాము",
+    checking_payment_hint: "మీ ఖాతా నుండి డబ్బు తీసుకుంటే, ఆర్డర్ కొద్దిసేపట్లో \"ఆర్డర్ అయింది\" అవుతుంది. మళ్లీ చెల్లించాల్సిన అవసరం లేదు.", refund_text: "{amt} రీఫండ్ మీకు తిరిగి వస్తోంది",
+    wa_updates: "నా ఆర్డర్ అప్‌డేట్‌లను WhatsApp లో పంపండి", wa_note: "రెస్టారెంట్ తరపున Nova యొక్క WhatsApp నంబర్ నుండి సందేశాలు వస్తాయి.", code_on_whatsapp: "మేము మీ WhatsApp కు కోడ్ పంపాము", code_via_whatsapp: "కోడ్ WhatsApp లో వస్తుంది.", opening_payment: "చెల్లింపు తెరుస్తోంది...", verifying_payment: "మీ చెల్లింపును నిర్ధారిస్తోంది...",
   },
   hi: {
     order_online: "ऑनलाइन ऑर्डर करें", open_now: "ऑर्डर खुले हैं", paused: "ऑर्डर अभी बंद हैं", home: "होम", search: "खोजें", orders: "ऑर्डर", account: "खाता",
@@ -61,6 +71,11 @@ export const dict = {
     empty_cart: "आपका कार्ट खाली है", empty_cart_hint: "कुछ व्यंजन जोड़ें।", browse_menu: "मेन्यू देखें", add_address: "पता जोड़ें", privacy: "गोपनीयता नीति", terms: "उपयोग की शर्तें",
     search_empty: "आपकी खोज से कोई व्यंजन नहीं मिला", min: "मिनट", about: "जानकारी", close: "बंद करें", add_to_cart: "कार्ट में जोड़ें", update_cart: "अपडेट",
     sign_in_to_order: "ऑर्डर करने के लिए साइन इन करें", order_placed: "ऑर्डर हो गया", thanks: "धन्यवाद! आपका ऑर्डर मिल गया।", continue: "आगे बढ़ें", contact: "संपर्क",
+    status_pending_payment: "भुगतान का इंतज़ार", pay_now: "अभी भुगतान करें", pay_amount: "भुगतान करें", pay_online: "अभी भुगतान करें (UPI, कार्ड, नेटबैंकिंग)", pay_how: "आप कैसे भुगतान करना चाहेंगे?",
+    pay_cod_delivery: "डिलीवरी / काउंटर पर भुगतान", paid_online: "ऑनलाइन भुगतान हो गया", payment_not_done: "भुगतान पूरा नहीं हुआ", payment_not_done_hint: "आपका ऑर्डर सहेजा गया है, पर भुगतान होने तक रेस्टोरेंट इसे शुरू नहीं करेगा।",
+    try_again: "फिर कोशिश करें", wait_pay: "भुगतान की समय सीमा", expired: "समय समाप्त", expired_hint: "समय पर भुगतान न होने से यह ऑर्डर रद्द हो गया है।", checking_payment: "हम आपका भुगतान जाँच रहे हैं",
+    checking_payment_hint: "अगर आपके खाते से पैसे कटे हैं, तो ऑर्डर थोड़ी देर में \"ऑर्डर मिला\" हो जाएगा। दोबारा भुगतान न करें।", refund_text: "{amt} का रिफंड आपके पास आ रहा है",
+    wa_updates: "मेरे ऑर्डर अपडेट WhatsApp पर भेजें", wa_note: "संदेश रेस्टोरेंट की ओर से Nova के WhatsApp नंबर से आते हैं।", code_on_whatsapp: "हमने आपके WhatsApp पर कोड भेजा है", code_via_whatsapp: "कोड WhatsApp पर आएगा।", opening_payment: "भुगतान खुल रहा है...", verifying_payment: "आपका भुगतान पक्का हो रहा है...",
   },
 };
 
