@@ -3,8 +3,10 @@ const INR=n=>"₹"+Math.round(n).toLocaleString("en-IN");
 const K=n=>n>=1e5?(n/1e5).toFixed(1)+"L":n>=1e3?(n/1e3).toFixed(1)+"k":String(n);
 const ic=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const I={home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',pos:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/>',kds:'<path d="M6 14a4 4 0 1 1 2-7 4 4 0 0 1 8 0 4 4 0 1 1 2 7v5H6z"/>',ord:'<path d="M4 6h16M4 12h16M4 18h10"/>',q:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M17 7h4M17 11h4"/>',tab:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v7h-3"/>',cus:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',off:'<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/>',menu:'<path d="M7 3v8M11 3v8M9 11v10M17 3c-2 2-2 6 0 8v10"/>',stf:'<path d="M12 3l8 3v6c0 5-3 8-8 9-5-1-8-4-8-9V6z"/>',soc:'<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 11l7.6-4M8.2 13l7.6 4"/>',ads:'<path d="M3 11v2l13 5V6zM16 9a3 3 0 0 1 0 6M6 14v5"/>',trf:'<path d="M3 17l6-6 4 4 8-9M15 6h6v6"/>',wa:'<path d="M4 20l1.5-4A8 8 0 1 1 8 19z"/>',rep:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',con:'<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>'};
-const NAV=[["Command",[["home","Overview","home"]]],["Service",[["pos","POS & Billing","pos"],["kds","Kitchen screen","kds"],["ord","Live orders","ord"],["q","Queue","q"],["tab","Tables & QR","tab"]]],["Business",[["cus","Customer CRM","cus"],["off","Offers engine","off"],["menu","Menu","menu"],["stf","Staff","stf"]]],["Growth",[["soc","Social","soc"],["ads","Ads & spend","ads"],["trf","Traffic","trf"],["wa","WhatsApp","wa"],["rep","Reports","rep"]]],["Setup",[["rules","Rules & printers","con"],["con","Connections","con"]]]];
-const LIVE=new Set(["home","pos","kds","ord","menu","rules"]);
+const NAV=[["Command",[["home","Dashboard","home"]]],["Service",[["pos","POS & Billing","pos"],["kds","Kitchen screen","kds"],["ord","Orders","ord"],["tab","Tables","tab"],["store","Online store","soc"],["rid","Riders","trf"],["q","Queue","q"]]],["Business",[["cus","Customers","cus"],["off","Offers","off"],["menu","Menu","menu"],["stf","Staff","stf"]]],["Growth",[["soc","Social","soc"],["ads","Ads & spend","ads"],["trf","Traffic","trf"],["wa","WhatsApp","wa"],["rep","Reports","rep"]]],["Setup",[["rules","Rules & printers","con"],["con","Connections","con"]]]];
+const LIVE=new Set(["home","pos","kds","ord","tab","store","rid","cus","off","menu","stf","rules"]);
+/* which permission a real screen needs before it is shown in the menu (the server enforces it too) */
+const NEEDS={pos:"bills.view",kds:"kitchen.view",ord:"orders.view",tab:"bills.view",store:"orders.view",rid:"orders.view",cus:"customers.view",off:"coupons.view",menu:"menu.view",stf:"users.view"};
 const PAGES={};NAV.forEach(g=>g[1].forEach(p=>PAGES[p[0]]={t:p[1],i:p[2]}));
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const RS=p=>{const v=(p||0)/100;return "₹"+(Number.isInteger(v)?v.toLocaleString("en-IN"):v.toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2}))};
@@ -27,3 +29,22 @@ const bars=(rows,fmt=INR)=>{const mx=Math.max(...rows.map(r=>r[1]));return rows.
 const chb=c=>{const x=CH.find(a=>a[0]===c)||["web","↗"];return`<span class="ch ${c}">${x[1]}</span>`};
 const tbl=(cols,rows)=>`<div class="tw"><table><thead><tr>${cols.map((c,i)=>`<th class="${c[1]?"r":""}">${c[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${cols[i][1]?"r mono":""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 const sw=(on,id)=>`<button class="sw" role="switch" aria-checked="${on}" data-sw="${id||""}"></button>`;
+/* DOM builder for the live screens: text always goes in as text nodes, never parsed as HTML.
+   h("div",{class:"x","data-a":"go"},"text",child,...) */
+const BOOL_PROPS=new Set(["checked","disabled","hidden","selected","required","readOnly","multiple"]);
+function h(tag,a,...kids){
+  const el=document.createElement(tag);
+  if(a!=null&&(typeof a!=="object"||a instanceof Node||Array.isArray(a))){kids.unshift(a);a=null}
+  for(const [k,v] of Object.entries(a||{})){
+    if(v==null)continue;
+    if(k==="class")el.className=v;
+    else if(k==="text")el.textContent=v;
+    else if(k==="value")el.value=v;
+    else if(BOOL_PROPS.has(k)){if(v)el[k]=true}
+    else if(k.startsWith("aria-")||k.startsWith("data-"))el.setAttribute(k,String(v));
+    else if(v!==false)el.setAttribute(k,v===true?"":v);
+  }
+  const add=c=>{if(c==null||c===false)return;if(Array.isArray(c))c.forEach(add);else el.append(c instanceof Node?c:document.createTextNode(String(c)))};
+  kids.forEach(add);
+  return el;
+}
