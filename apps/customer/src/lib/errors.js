@@ -30,7 +30,19 @@ export function describeError(err, { storefront } = {}) {
     case "COD_UNAVAILABLE":
       return { code, message: "Pay-on-delivery is not available at this hour. Please order again a little later.", action: "wait", label: "OK" };
     case "PAYMENT_NOT_AVAILABLE":
-      return { code, message: "Online payment is not available. You pay in cash or UPI when the order arrives.", action: null };
+      return { code, message: "Online payment is not available right now. You can pay on delivery or at the counter instead.", action: null };
+    case "PAYMENT_SIGNATURE":
+      return { code, message: "We could not verify your payment. If money was taken from your account it will be returned. Please try again or call the restaurant.", action: "call", label: "Call restaurant" };
+    case "PAYMENT_MISMATCH":
+      return { code, message: "This payment does not belong to this order. If money was taken from your account, call the restaurant.", action: "call", label: "Call restaurant" };
+    case "PAYMENT_PROVIDER_DOWN":
+      return { code, message: "The payment service is not answering. Please try again in a minute.", action: null };
+    case "PAYMENT_PROVIDER_ERROR":
+      return { code, message: err?.message && err.message !== "Something went wrong" ? err.message : "The payment service could not start this payment. Please try again.", action: null };
+    case "REFUND_FAILED":
+      return { code, message: "We could not send your refund, so the order was not cancelled. Please try again in a minute.", action: null };
+    case "NOT_PENDING":
+      return { code, message: "This order is no longer waiting for payment.", action: "refresh", label: "Refresh" };
     case "TOO_MANY_ACTIVE":
       return { code, message: "You already have several orders in progress. Wait for one to finish, then order again.", action: "orders", label: "See my orders" };
     case "TOO_LATE":

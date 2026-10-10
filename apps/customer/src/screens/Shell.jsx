@@ -16,7 +16,9 @@ export default function Shell() {
   const { storefront: sf, channels, mode, setMode, table, cartCount, cartTotal, cartApi, flash, isNative, navigate, code } = useApp();
   const { t } = useI18n();
   const [tab, setTab] = useState("home");
-  const [trackId, setTrackId] = useState(null);
+  const [trackId, setTrackIdRaw] = useState(null);
+  const [autoPay, setAutoPay] = useState(false);
+  const setTrackId = (id, pay = false) => { setAutoPay(!!pay); setTrackIdRaw(id); };
   const [cartOpen, setCartOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const afterSignIn = useRef(null);
@@ -43,8 +45,9 @@ export default function Shell() {
   function placed(order) {
     setCartOpen(false);
     setTab("orders");
-    setTrackId(order.id);
-    flash(`${t("order_placed")} #${order.order_no}`, "good");
+    const unpaid = order.status === "pending_payment";
+    setTrackId(order.id, unpaid);
+    if (!unpaid) flash(`${t("order_placed")} #${order.order_no}`, "good");
   }
 
   const nav = [["home", "home", t("home")], ["search", "search", t("search")], ["orders", "orders", t("orders")], ["account", "user", t("account")]];
@@ -82,7 +85,7 @@ export default function Shell() {
       <main id="main">
         {(tab === "home" || tab === "search") && <Menu key={tab} searchTab={tab === "search"} onOpenCart={() => setCartOpen(true)} />}
         {tab === "orders" && (trackId
-          ? <Track id={trackId} onBack={() => setTrackId(null)} onReorder={(it, q, n) => cartApi.add(it, q, n)} />
+          ? <Track id={trackId} autoPay={autoPay} onBack={() => setTrackId(null)} onReorder={(it, q, n) => cartApi.add(it, q, n)} />
           : <OrdersList onOpen={setTrackId} openSignIn={() => setSignInOpen(true)} goMenu={() => setTab("home")} />)}
         {tab === "account" && <Account openSignIn={() => setSignInOpen(true)} />}
       </main>

@@ -63,6 +63,7 @@ export default function SignIn({ open, onClose, onDone }) {
       {step === "phone" ? (
         <form onSubmit={send} className="space-y-4">
           <p className="text-[14px] text-ink/80">{t("sign_in_to_order")}</p>
+          <p className="text-[13px] text-ink/70">{t("code_via_whatsapp")}</p>
           <Field label={t("phone")}>
             {(p) => (
               <div className="flex gap-2">
@@ -75,7 +76,7 @@ export default function SignIn({ open, onClose, onDone }) {
         </form>
       ) : (
         <form onSubmit={verify} className="space-y-4">
-          <p className="text-[14px] text-ink/80">Code sent to <b>{digits}</b>. <button type="button" className="min-h-[44px] font-semibold text-brand underline" onClick={() => { setStep("phone"); setErr(null); }}>Change</button></p>
+          <p className="text-[14px] text-ink/80">{t("code_on_whatsapp")} (<b>{digits}</b>). <button type="button" className="min-h-[44px] font-semibold text-brand underline" onClick={() => { setStep("phone"); setErr(null); }}>Change</button></p>
           <Field label={t("code")}>
             {(p) => <input {...p} ref={codeRef} type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className={`${inputCls} text-center font-display text-2xl tracking-[.4em]`} />}
           </Field>
