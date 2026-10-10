@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Restaurant</string>
+    <string name="title_activity_main">Restaurant</string>
+    <string name="package_name">com.nova.customer</string>
+    <string name="custom_url_scheme">com.nova.customer</string>
+</resources>
