@@ -460,3 +460,16 @@ async def test_single_order_view_expires_unpaid_orders_and_storefront_reports_wh
     await database["bills"].update_one({"channel": "online"}, {"$set": {"created_at": "2020-01-01T00:00:00+00:00"}})
     assert (await client.get(f"/v2/me/orders/{o['id']}", headers=cust)).json()["status"] == "cancelled"
     assert (await client.get("/v2/public/spice-route/storefront")).json()["whatsapp"] == {"order_updates": True}
+
+
+async def test_audit_can_be_narrowed_to_one_restaurant_and_creation_reports_invite_expiry(client, platform_token):
+    p = H(platform_token)
+    made = []
+    for slug in ("alpha-grill", "beta-grill"):
+        tpl = (await client.get(f"/v2/platform/tenant-template?slug={slug}&name={slug}", headers=p)).json()
+        r = await client.post("/v2/platform/tenants", headers=p, json={"config": tpl, "owner_email": f"o@{slug}.example.com"})
+        assert r.status_code == 201 and r.json()["invite_expires_hours"] == 72
+        made.append(r.json()["id"])
+        await client.put(f"/v2/platform/tenants/{made[-1]}/plan", headers=p, json={"plan": "pro"})
+    only = (await client.get(f"/v2/platform/audit?target={made[0]}", headers=p)).json()
+    assert only and all(a["target"] == made[0] for a in only)

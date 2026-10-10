@@ -468,9 +468,14 @@ async def patch_lead(
 
 @router.get("/audit")
 async def audit_log(
-    limit: int = Query(100, ge=1, le=300), pdb: PlatformDB = Depends(get_platform_db), _: Principal = Depends(require_permission("platform.tenants.view"))
+    limit: int = Query(100, ge=1, le=300),
+    target: str | None = Query(None, max_length=64),
+    pdb: PlatformDB = Depends(get_platform_db),
+    _: Principal = Depends(require_permission("platform.tenants.view")),
 ):
-    return [{k: v for k, v in d.items() if k != "_id"} async for d in pdb.platform_audit.find({}).sort("ts", -1).limit(limit)]
+    """Newest first. ``target`` narrows it to one restaurant (its id) or one setting."""
+    flt = {"target": target} if target else {}
+    return [{k: v for k, v in d.items() if k != "_id"} async for d in pdb.platform_audit.find(flt).sort("ts", -1).limit(limit)]
 
 
 class OwnerEmail(BaseModel):
