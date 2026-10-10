@@ -1,0 +1,11 @@
+{
+  "appId": "com.nova.customer",
+  "appName": "Restaurant",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
