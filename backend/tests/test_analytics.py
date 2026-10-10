@@ -115,6 +115,7 @@ async def test_platform_view_spans_restaurants_and_opens_a_bill(client, busy, pl
     row = rec["rows"][0]
     full = (await get(client, p, f"/v2/platform/analytics/bill/{row['restaurant_id']}/{row['id']}")).json()
     assert full["restaurant"] and full["id"] == row["id"]
+    assert full["history"] and full["history"][0]["action"] == "create"  # the drawer shows who did what, minute by minute
     assert (await get(client, p, "/v2/platform/analytics/records.csv")).text.count("\n") >= 4
     # restaurant staff cannot use the platform routes
     assert (await client.get("/v2/platform/analytics/breakdown", headers=H(busy["owner"]))).status_code in (401, 403)

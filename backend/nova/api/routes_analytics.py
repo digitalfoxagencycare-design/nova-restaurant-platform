@@ -186,7 +186,7 @@ async def platform_bill(
     if not t:
         raise not_found("Restaurant not found")
     b = await _load(tenant_db_for(request, tid), bill_id)
-    return {**online_svc.staff_view(b), "restaurant": t["config"]["brand"]["name"], "restaurant_id": tid}
+    return {**online_svc.staff_view(b), "history": b.get("history", []), "restaurant": t["config"]["brand"]["name"], "restaurant_id": tid}
 
 
 # ------------------------------------------------------------------ shared
