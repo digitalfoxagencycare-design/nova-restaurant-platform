@@ -213,7 +213,7 @@ def quote_view(priced: dict) -> dict:
 
 
 def _line_view(ln: dict) -> dict:
-    return {"name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
+    return {"item_id": ln["item_id"], "name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
 
 
 # ------------------------------------------------------------------ placing

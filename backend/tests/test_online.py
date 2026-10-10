@@ -294,3 +294,15 @@ async def test_coupon_expiry_and_tables_fallback_and_full_permission_list(client
     assert len((await client.get("/v2/tables", headers=H(shop["cashier"]))).json()) >= 10         # default tables when none are configured
     perms = (await client.get("/v2/pos/rules", headers=H(shop["cashier"]))).json()["all_permissions"]
     assert "orders.update" in perms and "users.manage" not in perms
+
+
+async def test_deleted_account_can_start_again_and_order_lines_carry_item_ids(client, shop):
+    tok = await sign_in(client, shop["slug"], phone="9876543299", name="Old Name")
+    assert (await client.put("/v2/me", headers=H(tok), json={"addresses": [{"text": "Somewhere 123", "lat": 17.46, "lng": 78.39}]})).status_code == 200
+    o = (await client.post("/v2/me/orders", headers=H(tok), json={**cart(shop, ("Dum Biryani", 1)), "type": "takeaway"})).json()
+    assert o["lines"][0]["item_id"] == shop["items"]["Dum Biryani"]
+    assert (await client.delete("/v2/me", headers=H(tok))).status_code == 204
+    assert (await client.get("/v2/me", headers=H(tok))).status_code == 401
+    again = await sign_in(client, shop["slug"], phone="9876543299", name="New Name")
+    me = (await client.get("/v2/me", headers=H(again))).json()
+    assert me["name"] == "New Name" and me["addresses"] == []

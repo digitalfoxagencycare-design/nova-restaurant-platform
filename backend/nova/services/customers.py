@@ -83,6 +83,10 @@ async def verify_otp(tdb: TenantDB, s: Settings, cfg: dict, phone_raw: str, code
         cust["_id"] = res.inserted_id
     elif cust.get("status") == "blocked":
         raise ApiError(403, "BLOCKED", "This number cannot place orders")
+    elif cust.get("status") == "deleted":
+        # signing in again after deleting the account starts a fresh, empty profile
+        cust.update({"status": "active", "name": (name or "").strip()[:60], "addresses": []})
+        await tdb.customers.update_one({"_id": cust["_id"]}, {"$set": {"status": "active", "name": cust["name"], "addresses": []}})
     elif name and not cust.get("name"):
         await tdb.customers.update_one({"_id": cust["_id"]}, {"$set": {"name": name.strip()[:60]}})
         cust["name"] = name.strip()[:60]

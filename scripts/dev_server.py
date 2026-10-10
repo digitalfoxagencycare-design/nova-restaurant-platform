@@ -78,6 +78,9 @@ async def seed(app) -> None:
     for email, role, name in USERS[1:]:
         tok = await auth.create_invite(tdb, s, email, role, name)
         await auth.accept_invite(tdb, tok, DEMO_PW)
+    for n, (email, role, _) in enumerate(USERS):
+        if role == "delivery":
+            await tdb.users.update_one({"email": email}, {"$set": {"phone": f"90000000{n:02d}"}})
     for name, price, cat, station, veg, desc in MENU:
         await tdb.menu_items.insert_one({"name": name, "price": price, "category": cat, "station": station, "veg": veg, "available": True, "description": desc, "image_url": ""})
     await tdb.coupons.insert_one({"code": "WELCOME10", "title": "10% off your order", "kind": "pct", "value": 10, "min_subtotal": 30000, "max_discount": 10000, "active": True})
