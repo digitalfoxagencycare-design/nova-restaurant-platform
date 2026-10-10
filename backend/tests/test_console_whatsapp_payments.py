@@ -450,3 +450,13 @@ async def test_usage_overview_and_export_hide_secrets(client, shop, fake):
     for secret in ("password_hash", KEY_SECRET, WA_TOKEN, WEBHOOK):
         assert secret not in ex.text
     assert tenant_cfg("x")["slug"] == "x"
+
+
+async def test_single_order_view_expires_unpaid_orders_and_storefront_reports_whatsapp_setting(client, shop, fake, database):
+    await connect_whatsapp(client, shop)
+    await set_razorpay(client, shop)
+    cust = await customer(client, fake)
+    o = (await client.post("/v2/me/orders", headers=cust, json=order_body(shop, payment="online"))).json()
+    await database["bills"].update_one({"channel": "online"}, {"$set": {"created_at": "2020-01-01T00:00:00+00:00"}})
+    assert (await client.get(f"/v2/me/orders/{o['id']}", headers=cust)).json()["status"] == "cancelled"
+    assert (await client.get("/v2/public/spice-route/storefront")).json()["whatsapp"] == {"order_updates": True}

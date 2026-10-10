@@ -237,6 +237,7 @@ async def _mine(ctx: CustomerCtx, order_id: str) -> dict:
 
 @router.get("/me/orders/{order_id}")
 async def my_order(order_id: str, ctx: CustomerCtx = Depends(get_customer)):
+    await svc.expire_pending(ctx.tdb, ctx.cfg)
     return svc.customer_view(await _mine(ctx, order_id))
 
 
