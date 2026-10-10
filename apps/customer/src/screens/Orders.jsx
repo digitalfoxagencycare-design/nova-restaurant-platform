@@ -3,6 +3,7 @@ import { ago, dateOf, FINAL_STATES, mapsLink, money, timeOf } from "@nova/shared
 import { useApp } from "../state.jsx";
 import { useI18n } from "../i18n.js";
 import { describeError } from "../lib/errors.js";
+import { openCheckout } from "../lib/razorpay.js";
 import { Banner, Button, Empty, Icon, Row, Skeleton } from "../components/ui.jsx";
 
 const FLOWS = {
@@ -11,7 +12,10 @@ const FLOWS = {
   "dine-in": ["placed", "preparing", "ready", "served", "completed"],
 };
 const isFinal = (s) => FINAL_STATES.includes(s);
-const TONE = { cancelled: "bg-bad-soft text-bad", delivered: "bg-good-soft text-good", completed: "bg-good-soft text-good", out_for_delivery: "bg-accent-soft text-ink", ready: "bg-accent-soft text-ink" };
+const PAY_WINDOW_MS = 20 * 60 * 1000;
+const minsLeft = (o) => Math.ceil((new Date(o.placed_at).getTime() + PAY_WINDOW_MS - Date.now()) / 60000);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const TONE = { pending_payment: "bg-warn-soft text-warn",  cancelled: "bg-bad-soft text-bad", delivered: "bg-good-soft text-good", completed: "bg-good-soft text-good", out_for_delivery: "bg-accent-soft text-ink", ready: "bg-accent-soft text-ink" };
 
 export function StatusPill({ status }) {
   const { t } = useI18n();
@@ -53,7 +57,8 @@ export function OrdersList({ onOpen, openSignIn, goMenu }) {
       <ul className="space-y-3">
         {list.map((o) => (
           <li key={o.id}>
-            <button type="button" onClick={() => onOpen(o.id)} className="active-press w-full rounded-2xl border border-line bg-white p-4 text-left shadow-card">
+            <div className="rounded-2xl border border-line bg-white shadow-card">
+            <button type="button" onClick={() => onOpen(o.id)} className="active-press w-full rounded-2xl p-4 text-left">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-display text-lg font-bold">#{o.order_no}</span>
                 <StatusPill status={o.status} />
@@ -63,7 +68,13 @@ export function OrdersList({ onOpen, openSignIn, goMenu }) {
                 <span className="capitalize">{t(o.type)} · {dateOf(o.placed_at)} {timeOf(o.placed_at)}</span>
                 <span className="text-[15px] font-bold text-ink">{money(o.totals.total)}</span>
               </div>
+              {o.status === "cancelled" && o.payment?.refunded > 0 && <p className="mt-1 text-[13px] font-semibold text-good">{t("refund_text").replace("{amt}", money(o.payment.refunded))}</p>}
             </button>
+            {o.status === "pending_payment" && o.payment?.checkout && minsLeft(o) > 0 && (
+              <div className="px-4 pb-4"><Button className="w-full" onClick={() => onOpen(o.id, true)}>{t("pay_now")} · {money(o.totals.total)}</Button></div>
+            )}
+            {o.status === "pending_payment" && minsLeft(o) <= 0 && <p className="px-4 pb-4 text-[13px] font-semibold text-bad">{t("expired")}</p>}
+            </div>
           </li>
         ))}
       </ul>
@@ -74,7 +85,8 @@ export function OrdersList({ onOpen, openSignIn, goMenu }) {
 function Timeline({ order }) {
   const { t } = useI18n();
   const flow = [...(FLOWS[order.type] || FLOWS.takeaway)];
-  for (const s of order.timeline) if (!flow.includes(s.status) && s.status !== "cancelled") flow.splice(flow.length - 1, 0, s.status);
+  for (const s of order.timeline) if (!flow.includes(s.status) && s.status !== "cancelled" && s.status !== "pending_payment") flow.splice(flow.length - 1, 0, s.status);
+  if (order.timeline.some((s) => s.status === "pending_payment")) flow.unshift("pending_payment");
   const at = Object.fromEntries(order.timeline.map((s) => [s.status, s.at]));
   const cancelled = order.status === "cancelled";
   const idx = cancelled ? -1 : flow.indexOf(order.status);
@@ -107,8 +119,8 @@ function Timeline({ order }) {
   );
 }
 
-export function Track({ id, onBack, onReorder }) {
-  const { api, storefront, byId, flash } = useApp();
+export function Track({ id, autoPay, onBack, onReorder }) {
+  const { api, storefront, byId, flash, me } = useApp();
   const { t } = useI18n();
   const [done, setDone] = useState(false);
   const [state, load] = usePolled(() => api.get(`/v2/me/orders/${id}`), !done, 8000);
@@ -116,8 +128,74 @@ export function Track({ id, onBack, onReorder }) {
   const [err, setErr] = useState(null);
   const [confirm, setConfirm] = useState(false);
   const o = state.data;
+  const [pay, setPay] = useState({ phase: "idle", err: null });
+  const live = useRef(true);
+  const oRef = useRef(null);
+  oRef.current = o;
+  const attempt = useRef({ paid: false });
+  const auto = useRef(!!autoPay);
+  const expiredPoke = useRef(false);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   useEffect(() => { setDone(!!o && isFinal(o.status)); }, [o]);
   const phone = storefront?.brand?.support?.phone;
+
+  // the payment may have gone through even if our confirm call did not: keep asking for up to a minute
+  async function waitForServer() {
+    const end = Date.now() + 60000;
+    while (live.current && Date.now() < end) {
+      await sleep(3000);
+      const d = await load();
+      if (d && d.status !== "pending_payment") return true;
+    }
+    return false;
+  }
+  async function confirmPayment(resp) {
+    attempt.current.paid = true;
+    setPay({ phase: "confirming", err: null });
+    try {
+      await api.post(`/v2/me/orders/${id}/payment`, resp);
+      await load();
+      if (live.current) { setPay({ phase: "idle", err: null }); flash(t("paid_online"), "good"); }
+    } catch (e) {
+      if (!live.current) return;
+      if (e.code === "NETWORK" || e.code === "TIMEOUT" || (e.status >= 500 && !e.code?.startsWith("PAYMENT_"))) {
+        setPay({ phase: "checking", err: null });
+        const ok = await waitForServer();
+        if (live.current) setPay({ phase: ok ? "idle" : "unconfirmed", err: null });
+        return;
+      }
+      if (e.code === "NOT_PENDING") { await load(); setPay({ phase: "idle", err: null }); return; }
+      attempt.current.paid = false;
+      setPay({ phase: "notdone", err: describeError(e, { storefront }) });
+    }
+  }
+  async function startPay() {
+    const cur = oRef.current;
+    if (!cur?.payment?.checkout || pay.phase === "opening") return;
+    if (minsLeft(cur) <= 0) { load(); return; }
+    attempt.current = { paid: false };
+    const mine = attempt.current;
+    setPay({ phase: "opening", err: null });
+    try {
+      await openCheckout({
+        checkout: cur.payment.checkout, orderNo: cur.order_no, name: storefront?.brand?.name || "", phone: me?.phone, color: storefront?.brand?.colors?.primary,
+        onPaid: confirmPayment,
+        onDismiss: () => { if (!mine.paid) setPay({ phase: "notdone", err: null }); },
+        onFailed: () => { if (!mine.paid) setPay({ phase: "notdone", err: null, failed: true }); },
+      });
+      setPay((p) => (p.phase === "opening" ? { phase: "open", err: null } : p));
+    } catch {
+      setPay({ phase: "notdone", err: { message: "We could not open the payment window. Check your internet connection and try again." } });
+    }
+  }
+  const unpaid = o?.status === "pending_payment";
+  const expired = unpaid && minsLeft(o) <= 0;
+  useEffect(() => {
+    if (auto.current && unpaid && o.payment?.checkout) { auto.current = false; startPay(); }
+  }, [o]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (expired && !expiredPoke.current) { expiredPoke.current = true; api.get("/v2/me/orders").then(load).catch(() => {}); } // listing orders makes the server cancel the unpaid ones
+  }, [expired]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function cancel() {
     setBusy(true); setErr(null);
@@ -136,6 +214,14 @@ export function Track({ id, onBack, onReorder }) {
     flash(missed ? `${added} added. ${missed} no longer available.` : `${added} dishes added to your cart.`, missed ? "warn" : "info");
   }
 
+  const cancelBox = (
+    <div className="mt-2 flex w-full items-center gap-2 rounded-xl border border-bad/30 bg-white p-3" role="alertdialog" aria-label="Confirm cancel">
+      <span className="flex-1 text-[14px] font-semibold text-bad">{t("cancel_order")}?</span>
+      <Button variant="ghost" onClick={() => setConfirm(false)}>{t("close")}</Button>
+      <Button variant="danger" busy={busy} onClick={cancel}>{t("confirm")}</Button>
+    </div>
+  );
+
   return (
     <div className="p-4 pb-8">
       <button type="button" onClick={onBack} className="mb-2 inline-flex min-h-[44px] items-center gap-1 text-[14px] font-semibold text-brand"><Icon name="back" size={18} />{t("orders")}</button>
@@ -148,7 +234,7 @@ export function Track({ id, onBack, onReorder }) {
             <p className="text-[13px] text-brand-on/80">#{o.order_no} · <span className="capitalize">{t(o.type)}</span></p>
             <h1 className="mt-1 font-display text-2xl font-extrabold" data-testid="status-title">{t(`status_${o.status}`)}</h1>
             <p className="mt-1 text-[13px] text-brand-on/80">
-              {isFinal(o.status) ? `${dateOf(o.placed_at)}, ${timeOf(o.placed_at)}` : `Placed ${ago(o.placed_at)}${storefront?.ordering?.prep_minutes ? ` · usually ready in ${storefront.ordering.prep_minutes} ${t("min")}` : ""}`}
+              {isFinal(o.status) ? `${dateOf(o.placed_at)}, ${timeOf(o.placed_at)}` : unpaid ? (expired ? t("expired") : `${t("wait_pay")}: ${Math.max(1, minsLeft(o))} ${t("min")}`) : `Placed ${ago(o.placed_at)}${storefront?.ordering?.prep_minutes ? ` · usually ready in ${storefront.ordering.prep_minutes} ${t("min")}` : ""}`}
             </p>
           </section>
 
@@ -171,6 +257,37 @@ export function Track({ id, onBack, onReorder }) {
 
           {err && <Banner tone="bad" action={err.action === "call" && phone ? <a className="inline-flex min-h-[44px] items-center font-bold underline" href={`tel:${phone}`}>{err.label}</a> : null}>{err.message}</Banner>}
 
+          {o.status === "cancelled" && o.payment?.refunded > 0 && <Banner tone="good" icon="check"><b data-testid="refund-note">{t("refund_text").replace("{amt}", money(o.payment.refunded))}</b></Banner>}
+
+          {unpaid && (
+            <section className="rounded-2xl border-2 border-warn/40 bg-warn-soft p-4" data-testid="pay-panel" aria-live="polite">
+              {expired ? (
+                <>
+                  <h2 className="font-display text-lg font-bold">{t("expired")}</h2>
+                  <p className="mt-1 text-[14px]">{t("expired_hint")}</p>
+                </>
+              ) : pay.phase === "confirming" || pay.phase === "checking" ? (
+                <p className="flex items-center gap-2 font-semibold"><span className="h-4 w-4 animate-spin rounded-full border-2 border-warn border-t-transparent" aria-hidden="true" />{t("verifying_payment")}</p>
+              ) : pay.phase === "unconfirmed" ? (
+                <>
+                  <h2 className="font-display text-lg font-bold">{t("checking_payment")}</h2>
+                  <p className="mt-1 text-[14px]">{t("checking_payment_hint")}</p>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-display text-lg font-bold">{pay.phase === "notdone" ? t("payment_not_done") : t("status_pending_payment")}</h2>
+                  <p className="mt-1 text-[14px]">{pay.phase === "notdone" ? t("payment_not_done_hint") : `${t("wait_pay")}: ${Math.max(1, minsLeft(o))} ${t("min")}`}</p>
+                  {pay.err && <p className="mt-2 text-[14px] font-semibold text-bad" role="alert">{pay.err.message}</p>}
+                  {o.payment?.checkout && (
+                    <Button className="mt-3 w-full min-h-[48px]" busy={pay.phase === "opening"} onClick={startPay}>{pay.phase === "notdone" ? t("try_again") : `${t("pay_now")} · ${money(o.totals.total)}`}</Button>
+                  )}
+                </>
+              )}
+              {!confirm && pay.phase !== "confirming" && pay.phase !== "checking" && !expired && <Button variant="danger" className="mt-2 w-full" onClick={() => setConfirm(true)}>{t("cancel_order")}</Button>}
+              {confirm && cancelBox}
+            </section>
+          )}
+
           <section className="rounded-2xl border border-line bg-white p-4"><Timeline order={o} /></section>
 
           <section className="rounded-2xl border border-line bg-white p-4">
@@ -186,8 +303,8 @@ export function Track({ id, onBack, onReorder }) {
               {o.lines.filter((l) => l.fee).map((l, i) => <Row key={i} label={l.name} value={money(l.price * l.qty)} />)}
               {o.totals.discount > 0 && <Row label={t("discount")} value={`− ${money(o.totals.discount)}`} tone="good" />}
               <Row strong label={t("total")} value={money(o.totals.total)} />
-              {o.payment && !isFinal(o.status) && o.payment.due > 0 && <p className="mt-1 text-[13px] text-ink/70">{t("paid_note")}: {money(o.payment.due)} · {o.type === "delivery" ? "on delivery" : "at the counter"} (cash or UPI)</p>}
-              {o.payment?.paid && <p className="mt-1 text-[13px] font-semibold text-good">Paid</p>}
+              {o.payment && !isFinal(o.status) && o.status !== "pending_payment" && o.payment.due > 0 && <p className="mt-1 text-[13px] text-ink/70">{t("paid_note")}: {money(o.payment.due)} · {o.type === "delivery" ? "on delivery" : "at the counter"} (cash or UPI)</p>}
+              {o.payment?.paid && <p className="mt-1 text-[13px] font-semibold text-good">{o.payment.method === "online" ? t("paid_online") : "Paid"}</p>}
             </div>
             {(o.address?.text || o.table || o.notes) && (
               <div className="mt-3 space-y-1 border-t border-line pt-3 text-[13px] text-ink/80">
@@ -200,13 +317,7 @@ export function Track({ id, onBack, onReorder }) {
 
           <div className="flex flex-wrap gap-3">
             {o.status === "placed" && !confirm && <Button variant="danger" onClick={() => setConfirm(true)}>{t("cancel_order")}</Button>}
-            {confirm && (
-              <div className="flex w-full items-center gap-2 rounded-xl border border-bad/30 bg-bad-soft p-3" role="alertdialog" aria-label="Confirm cancel">
-                <span className="flex-1 text-[14px] font-semibold text-bad">{t("cancel_order")}?</span>
-                <Button variant="ghost" onClick={() => setConfirm(false)}>{t("close")}</Button>
-                <Button variant="danger" busy={busy} onClick={cancel}>{t("confirm")}</Button>
-              </div>
-            )}
+            {confirm && !unpaid && cancelBox}
             {isFinal(o.status) && <Button onClick={reorder}>{t("reorder")}</Button>}
             {phone && <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-line px-4 font-semibold"><Icon name="phone" size={18} />{t("call")}</a>}
           </div>
