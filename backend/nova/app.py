@@ -10,7 +10,18 @@ from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.cors import CORSMiddleware
 
-from .api import routes_console, routes_delivery, routes_online, routes_ops, routes_platform, routes_pos, routes_public, routes_site, routes_tenant
+from .api import (
+    routes_analytics,
+    routes_console,
+    routes_delivery,
+    routes_online,
+    routes_ops,
+    routes_platform,
+    routes_pos,
+    routes_public,
+    routes_site,
+    routes_tenant,
+)
 from .core.config import Settings
 from .core.startup_checks import assert_safe_startup
 from .services import whatsapp as wa_svc
@@ -46,6 +57,8 @@ def create_app(settings: Settings | None = None, database=None, http: httpx.Asyn
     app.include_router(routes_platform.router)
     app.include_router(routes_console.router)
     app.include_router(routes_site.router)
+    app.include_router(routes_analytics.tenant_router)
+    app.include_router(routes_analytics.platform_router)
 
     web = Path(__file__).resolve().parents[2] / "web"
     if web.is_dir():
