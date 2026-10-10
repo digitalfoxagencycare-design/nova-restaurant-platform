@@ -197,9 +197,11 @@ async def ensure_indexes(database) -> None:
         "invites": [([("tenant_id", 1), ("token_hash", 1)], True)],
         "counters": [([("tenant_id", 1), ("key", 1)], True)],
         "audit_log": [([("tenant_id", 1), ("ts", -1)], False)],
-        "bills": [([("tenant_id", 1), ("bill_no", 1)], True), ([("tenant_id", 1), ("status", 1), ("created_at", -1)], False)],
+        "bills": [([("tenant_id", 1), ("bill_no", 1)], True), ([("tenant_id", 1), ("status", 1), ("created_at", -1)], False),
+                  ([("tenant_id", 1), ("channel", 1), ("online.status", 1)], False)],
         "kot_tickets": [([("tenant_id", 1), ("bill_id", 1), ("batch", 1)], True), ([("tenant_id", 1), ("status", 1), ("created_at", 1)], False)],
         "approvals": [([("tenant_id", 1), ("jti", 1)], True)],
+        "otp_verifications": [([("tenant_id", 1), ("phone", 1)], False)],
         "idempotency": [([("tenant_id", 1), ("key", 1)], True)],
     }
     for coll, idx in spec.items():

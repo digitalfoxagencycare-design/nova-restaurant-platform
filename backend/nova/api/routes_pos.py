@@ -50,6 +50,8 @@ class MenuIn(BaseModel):
     veg: bool | None = None
     tax_rate: float | None = Field(default=None, ge=0, le=0.28)
     available: bool = True
+    description: str = Field(default="", max_length=240)
+    image_url: str = Field(default="", max_length=300)
 
 
 class MenuPatch(BaseModel):
@@ -57,8 +59,11 @@ class MenuPatch(BaseModel):
     price: int | None = Field(default=None, ge=0, le=10_000_000)
     category: str | None = Field(default=None, min_length=1, max_length=40)
     station: str | None = None
+    veg: bool | None = None
     available: bool | None = None
     tax_rate: float | None = Field(default=None, ge=0, le=0.28)
+    description: str | None = Field(default=None, max_length=240)
+    image_url: str | None = Field(default=None, max_length=300)
 
 
 class BillIn(BaseModel):
@@ -147,7 +152,8 @@ def _oid(v: str) -> ObjectId:
 
 def _item(d: dict) -> dict:
     return {"id": str(d["_id"]), "name": d["name"], "price": d["price"], "category": d["category"], "code": d.get("code"),
-            "station": d.get("station", "kitchen"), "veg": d.get("veg"), "available": d.get("available", True), "tax_rate": d.get("tax_rate")}
+            "station": d.get("station", "kitchen"), "veg": d.get("veg"), "available": d.get("available", True), "tax_rate": d.get("tax_rate"),
+            "description": d.get("description", ""), "image_url": d.get("image_url", "")}
 
 
 # ------------------------------------------------------------------ rules (what the screen may show)
@@ -159,6 +165,7 @@ async def rules(p: Principal = Depends(require_tenant_principal)):
         "brand": cfg["brand"]["name"], "currency": cfg["locale"]["currency"], "tax": cfg["tax"],
         "tables": pos.get("tables") or DEFAULT_TABLES, "printers": pos.get("printers") or [], "profiles": {k: v.label for k, v in PROFILES.items()},
         "permissions": sorted(p.permissions & POS_PERMISSIONS) if "*" not in p.permissions else sorted(POS_PERMISSIONS),
+        "all_permissions": ["*"] if "*" in p.permissions else sorted(p.permissions),
         "limits": {k: limit_for(p.role, k, cfg) for k in DEFAULT_LIMITS}, "role": p.role,
         "reasons_required": pos.get("reasons_required") or ["void", "void_item", "refund", "reopen"],
     }

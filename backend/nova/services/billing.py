@@ -250,7 +250,7 @@ async def set_discount(tdb, p, cfg, settings, bill_id, body, revision=None):
 async def send_kot(tdb: TenantDB, p: Principal, cfg: dict, bill_id: str) -> tuple[dict, list[dict]]:
     b = await _load(tdb, bill_id)
     _assert_open(b)
-    fresh = [ln for ln in b["lines"] if ln["qty"] > ln["kot_qty"]]
+    fresh = [ln for ln in b["lines"] if ln["qty"] > ln["kot_qty"] and not ln.get("fee")]
     if not fresh:
         raise bad_request("NOTHING_NEW", "Nothing new to send to the kitchen")
     b["kot_batches"] += 1

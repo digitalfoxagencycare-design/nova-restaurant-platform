@@ -63,6 +63,8 @@ async def get_principal(
         claims = decode_token(settings, cred.credentials, "access")
     except TokenError as e:
         raise unauthorized(str(e)) from e
+    if claims.get("kind") == "customer":
+        raise unauthorized("Not a staff token")
     pdb = PlatformDB(request.app.state.database)
     if claims.get("kind") == "platform":
         user = await _load_user(pdb.platform_users, claims["sub"])

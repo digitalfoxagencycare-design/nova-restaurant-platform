@@ -54,11 +54,13 @@ def allocate(total: int, weights: list[int]) -> list[int]:
 
 
 def compute(lines: list[dict[str, Any]], discount: dict[str, Any] | None, default_rate: float, mode: str) -> Totals:
+    """``fee`` lines (e.g. delivery charge) are part of the total but never discounted."""
     live = [ln for ln in lines if int(ln["qty"]) > 0]
     values = [line_value(ln) for ln in live]
+    food = [0 if ln.get("fee") else v for ln, v in zip(live, values, strict=True)]
     subtotal = sum(values)
-    disc = discount_amount(subtotal, discount)
-    shares = allocate(disc, values)
+    disc = discount_amount(sum(food), discount)
+    shares = allocate(disc, food)
     tax_total = 0
     out: list[dict[str, int]] = []
     for ln, v, sh in zip(live, values, shares, strict=True):
