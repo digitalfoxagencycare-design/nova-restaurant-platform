@@ -328,12 +328,14 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
           </fieldset>
           {!codOk && !onlineOk && <Banner tone="warn">Pay-on-delivery is not available at this hour. Please try again a little later.</Banner>}
 
-          <div>
-            <label className="flex min-h-[44px] items-center gap-3 text-[14px] font-semibold">
-              <input type="checkbox" className="h-5 w-5 accent-[rgb(var(--accent))]" checked={wa} onChange={(e) => setWa(e.target.checked)} />{t("wa_updates")}
-            </label>
-            <p className="pl-8 text-[12px] text-ink/70">{t("wa_note")}</p>
-          </div>
+          {sf?.whatsapp?.order_updates !== false && (
+            <div>
+              <label className="flex min-h-[44px] items-center gap-3 text-[14px] font-semibold">
+                <input type="checkbox" className="h-5 w-5 accent-[rgb(var(--accent))]" checked={wa} onChange={(e) => setWa(e.target.checked)} />{t("wa_updates")}
+              </label>
+              <p className="pl-8 text-[12px] text-ink/70">{t("wa_note")}</p>
+            </div>
+          )}
 
           {/* totals */}
           <div className="rounded-2xl border border-line bg-white p-3" aria-live="polite" aria-busy={quote.status === "loading"}>
