@@ -29,7 +29,7 @@ function Shell({ session }) {
   useEffect(loadRules, [loadRules]);
 
   const role = (rules && rules.role) || session.role;
-  const can = useMemo(() => makeCan(role, rules ? rules.permissions : []), [role, rules]);
+  const can = useMemo(() => makeCan(role, rules ? rules.permissions : [], rules ? rules.all_permissions : undefined), [role, rules]);
 
   useEffect(() => {
     if (!rules || !can("config.view")) return;

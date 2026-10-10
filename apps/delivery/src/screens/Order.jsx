@@ -95,6 +95,18 @@ function DeliveredSheet({ order, open, onClose, onDone }) {
 export default function Order({ order, orderId, onBack, onChanged, shop }) {
   const toast = useToast();
   const [sheet, setSheet] = useState(false);
+  const [starting, setStarting] = useState(false);
+  async function startDelivery() {
+    setStarting(true);
+    try {
+      await api.post(`/v2/delivery/orders/${order.id}/accept`);
+      toast(`Order #${order.order_no}: on the way`, "good");
+      await onChanged();
+    } catch (e) {
+      toast(e.message, "bad");
+      await onChanged();
+    } finally { setStarting(false); }
+  }
   const header = (
     <header className="pt-safe sticky top-0 z-20 flex items-center gap-2 bg-brand px-3 pb-3 pt-3 text-brand-on">
       <button type="button" onClick={onBack} aria-label="Back" className="grid h-11 w-11 place-items-center rounded-full"><Icon name="back" className="h-6 w-6" /></button>
@@ -119,7 +131,7 @@ export default function Order({ order, orderId, onBack, onChanged, shop }) {
         <Card><Progress stage={stage} /></Card>
 
         {order.status === "ready" || order.status === "preparing" ? (
-          <p className="rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn">Go to the restaurant to collect the order. The restaurant marks it as handed over, then you can deliver it.</p>
+          <p className="rounded-xl bg-warn-soft px-3 py-2 text-sm font-semibold text-warn">Go to the restaurant to collect the order. Tap "Collected, start delivery" once you have the food.</p>
         ) : null}
 
         <Block title="Pickup">
@@ -157,6 +169,11 @@ export default function Order({ order, orderId, onBack, onChanged, shop }) {
         </Card>
       </main>
 
+      {order.status === "ready" ? (
+        <div className="pb-safe fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[520px] border-t border-line bg-surface p-3">
+          <Button className="w-full" busy={starting} onClick={startDelivery}><Icon name="nav" />Collected, start delivery</Button>
+        </div>
+      ) : null}
       {order.status === "out_for_delivery" ? (
         <div className="pb-safe fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[520px] border-t border-line bg-surface p-3">
           <Button className="w-full" onClick={() => setSheet(true)}><Icon name="check" />Mark delivered</Button>

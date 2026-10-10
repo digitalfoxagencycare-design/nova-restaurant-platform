@@ -11,7 +11,10 @@ const ROLE_EXTRA = {
   cashier: ["orders.view", "orders.update", "customers.view", "config.view"],
 };
 
-export function makeCan(role, posPerms) {
+// `all` is the server's full effective permission list (`all_permissions` from /v2/pos/rules). Older servers do not send it,
+// then the built-in role table above is used.
+export function makeCan(role, posPerms, all) {
+  if (Array.isArray(all)) return (perm) => all.includes("*") || all.includes(perm);
   const extra = ROLE_EXTRA[role] || [];
   return (perm) => role === "owner" || extra.includes("*") || extra.includes(perm) || (posPerms || []).includes(perm);
 }
