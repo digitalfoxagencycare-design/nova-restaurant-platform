@@ -1,0 +1,12 @@
+@import "@nova/shared/base.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+body { overscroll-behavior-y: auto; font-size: 16px; line-height: 1.45; }
+input[type="color"] { padding: 2px; cursor: pointer; }
+a { color: inherit; }
+.prose-link { color: rgb(var(--brand)); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+.skip-link { position: absolute; left: -999px; }
+.skip-link:focus { left: 8px; top: 8px; z-index: 100; background: #fff; padding: 10px 14px; border-radius: 10px; }
