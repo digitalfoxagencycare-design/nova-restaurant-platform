@@ -1,5 +1,5 @@
 "use strict";
-/* Live screens: overview, kitchen, live orders, menu, rules and printers. */
+/* Live screens: kitchen, menu data, rules and printers. Dashboard/Orders are in live.js; management screens and the menu view in manage.js. */
 const mins = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 const D = { day: null, tickets: [], bills: [], menu: [], roles: null, cfg: null, loaded: {} };
 let beepOn = localStorage.getItem("nova_beep") !== "0", lastTicketIds = null;
@@ -11,41 +11,17 @@ const guard = async (fn) => { try { return await fn(); } catch (e) { toast(e.mes
 
 /* ---------------- loaders (called by the router before drawing) ---------------- */
 const LOAD = {
-  async home() {
-    D.day = need("reports.view") ? await guard(() => api("GET", "/v2/pos/reports/day")) : null;
-    D.bills = need("bills.view") ? (await guard(() => api("GET", "/v2/pos/bills?status=open&limit=100"))) || [] : [];
-    D.tickets = need("kitchen.view") ? (await guard(() => api("GET", "/v2/pos/kitchen"))) || [] : [];
-  },
   async kds() {
     const t = (await guard(() => api("GET", "/v2/pos/kitchen"))) || [];
     const ids = new Set(t.map((x) => x.id));
     if (lastTicketIds && beepOn && t.some((x) => !lastTicketIds.has(x.id))) beep();
     lastTicketIds = ids; D.tickets = t;
   },
-  async ord() {
-    D.bills = (await guard(() => api("GET", "/v2/pos/bills?status=open&limit=100"))) || [];
-    D.paid = (await guard(() => api("GET", "/v2/pos/bills?status=paid&limit=20"))) || [];
-    D.tickets = (await guard(() => api("GET", "/v2/pos/kitchen"))) || [];
-  },
   async menu() { D.menu = (await guard(() => api("GET", "/v2/pos/menu"))) || []; },
   async rules() {
     D.cfg = need("config.view") ? await guard(() => api("GET", "/v2/tenants/me")) : null;
     D.roles = need("config.view") ? await guard(() => api("GET", "/v2/pos/roles")) : null;
   },
-};
-
-/* ---------------- overview ---------------- */
-V.home = () => {
-  const d = D.day, open = D.bills.length, cooking = D.tickets.filter((t) => t.status !== "ready").length;
-  const late = D.tickets.filter((t) => t.status !== "ready" && mins(t.created_at) > 15).length;
-  return head(esc(RULES.brand), "Today", `<button class="btn pri sm" data-go="pos">Open POS</button>`, true) +
-    `<div class="grid g4">
-      <div class="card kpi"><small>Sales today</small><strong>${d ? RS(d.sales) : "–"}</strong><span class="sub">${d ? d.bills_paid + " bills paid" : "Ask a manager for the day summary"}</span></div>
-      <div class="card kpi"><small>Collected (after refunds)</small><strong>${d ? RS(d.net_collected) : "–"}</strong><span class="sub">${d ? Object.entries(d.by_mode).map(([k, v]) => `${esc(k)} ${RS(v)}`).join(" · ") || "Nothing yet" : ""}</span></div>
-      <div class="card kpi"><small>Open bills</small><strong>${open}</strong><span class="sub">waiting for payment</span></div>
-      <div class="card kpi"><small>In the kitchen</small><strong>${cooking}</strong><span class="delta ${late ? "dn" : "up"}">${late ? late + " running late" : "all on time"}</span></div></div>
-    ${d ? `<div class="grid g3" style="margin-top:14px"><div class="card kpi"><small>Discounts given</small><strong>${RS(d.discounts)}</strong></div><div class="card kpi"><small>Refunds</small><strong>${RS(d.refunds)}</strong></div><div class="card kpi"><small>Voided bills</small><strong>${d.voided_bills}</strong></div></div>` : ""}
-    <div class="sample-flag" style="margin-top:18px">Marketing, social, ads, traffic and WhatsApp pages are design previews with made-up numbers until each account is connected.</div>`;
 };
 
 /* ---------------- kitchen ---------------- */
@@ -59,40 +35,7 @@ V.kds = () => {
         ${need("kitchen.update") ? `<button class="btn ${k === "new" ? "pri" : ""}" style="width:100%;justify-content:center;min-height:54px;font-weight:700" data-kd="adv" data-v="${t.id}">${label}</button>` : ""}</div>`; }).join("") || `<div class="sub">Nothing here</div>`}</div></div>`; }).join("")}</div></div>`;
 };
 
-/* ---------------- live orders (every bill, by where it is) ---------------- */
-V.ord = () => {
-  const byBill = {}; D.tickets.forEach((t) => (byBill[t.bill_id] = byBill[t.bill_id] || []).push(t));
-  const stage = (b) => { const t = byBill[b.id]; if (!t) return "open"; return t.every((x) => x.status === "ready") ? "ready" : "kitchen"; };
-  const cols = [["open", "Taking order"], ["kitchen", "In kitchen"], ["ready", "Ready · collect payment"]];
-  const card = (b, extra) => `<div class="oc ${mins(b.created_at) > 40 && b.status === "open" ? "warn" : ""}"><div class="row sb"><span class="big">#${b.bill_no}</span><span class="pill p-mute">${mins(b.created_at)} min</span></div>
-    <div class="sub" style="margin:4px 0 8px">${esc(b.type)}${b.table ? " · " + esc(b.table) : ""}${b.customer.phone ? " · " + esc(b.customer.phone) : ""}</div>
-    <div style="margin-bottom:8px">${b.lines.map((l) => `${l.qty} × ${esc(l.name)}${l.note ? `<span class="note">“${esc(l.note)}”</span>` : ""}`).join("<br>") || '<span class="sub">No items yet</span>'}</div>
-    <div class="row sb" style="margin-bottom:10px"><b class="mono">${RS(b.totals.total)}</b>${b.paid ? `<span class="pill p-warn">${RS(b.balance)} due</span>` : ""}</div>${extra}</div>`;
-  return head("Service", "Live orders", "", true) + `<div class="pos xl"><div class="board" style="grid-template-columns:repeat(3,minmax(0,1fr))">${cols.map(([k, n]) => { const L = D.bills.filter((b) => stage(b) === k);
-    return `<div><div class="colh"><span>${n}</span><span class="pill p-mute">${L.length}</span></div>${L.map((b) => card(b, `<button class="btn ${k === "ready" ? "pri" : ""}" data-go="pos" data-open="${b.id}">${k === "ready" ? "Collect payment" : "Open in POS"}</button>`)).join("") || '<div class="sub">Nothing here</div>'}</div>`; }).join("")}</div>
-    <h3 style="margin:22px 0 10px">Paid recently</h3><div class="card"><div class="tw"><table><thead><tr><th>Bill</th><th>Type</th><th>Paid</th><th class="r">Total</th></tr></thead><tbody>${(D.paid || []).map((b) => `<tr><td>#${b.bill_no}</td><td>${esc(b.type)}${b.table ? " · " + esc(b.table) : ""}</td><td>${b.payments.map((p) => esc(p.mode)).join(" + ")}</td><td class="r mono">${RS(b.totals.total)}</td></tr>`).join("") || '<tr><td colspan="4" class="sub">Nothing paid yet today.</td></tr>'}</tbody></table></div></div></div>`;
-};
-
-/* ---------------- menu ---------------- */
-V.menu = () => head("Business", "Menu", need("menu.edit") ? `<button class="btn pri sm" data-mn="add">Add dish</button>` : "") +
-  `<div class="card"><div class="tw"><table><thead><tr><th>Code</th><th>Dish</th><th>Category</th><th>Station</th><th class="r">Price</th><th>In stock</th><th></th></tr></thead><tbody>${D.menu.map((m) => `<tr><td class="mono">${m.code || ""}</td><td><b>${esc(m.name)}</b></td><td>${esc(m.category)}</td><td>${esc(m.station)}</td><td class="r mono">${RS(m.price)}</td>
-  <td>${need("menu.stock") || need("menu.edit") ? `<button class="sw" role="switch" aria-checked="${m.available}" data-mn="stock" data-v="${m.id}" aria-label="In stock: ${esc(m.name)}"></button>` : m.available ? "Yes" : "No"}</td>
-  <td>${need("menu.edit") ? `<button class="btn sm" data-mn="edit" data-v="${m.id}">Edit</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="sub">No dishes yet. Add your first one.</td></tr>`}</tbody></table></div></div>`;
-
-async function menuForm(m) {
-  const v = await modal(`<h3>${m ? "Edit dish" : "Add dish"}</h3>
-   <label class="f">Name<input id="mn" class="inp" maxlength="80" value="${esc(m?.name)}" autofocus></label>
-   <div class="row"><label class="f" style="flex:1">Price (₹)<input id="mp" class="inp" inputmode="decimal" value="${m ? m.price / 100 : ""}"></label><label class="f" style="flex:1">Code<input id="mc" class="inp" inputmode="numeric" value="${m?.code || ""}" ${m ? "disabled" : ""}></label></div>
-   <div class="row"><label class="f" style="flex:1">Category<input id="mg" class="inp" maxlength="40" value="${esc(m?.category)}"></label><label class="f" style="flex:1">Kitchen station<input id="ms" class="inp" maxlength="24" value="${esc(m?.station || "kitchen")}"></label></div>
-   <div class="row" style="margin-top:14px"><button class="btn" data-close>Cancel</button><div class="sp"></div><button class="btn pri" id="mok">Save</button></div>`, (el, close) => {
-    el.querySelector("#mok").addEventListener("click", () => close({ name: el.querySelector("#mn").value.trim(), price: PAISE(el.querySelector("#mp").value), code: +el.querySelector("#mc").value || undefined, category: el.querySelector("#mg").value.trim(), station: el.querySelector("#ms").value.trim() || "kitchen" }));
-  });
-  if (!v) return;
-  if (!v.name || !v.category) return toast("Name and category are needed");
-  const body = m ? { name: v.name, price: v.price, category: v.category, station: v.station } : v;
-  const r = await guard(() => (m ? api("PATCH", `/v2/pos/menu/${m.id}`, body) : api("POST", "/v2/pos/menu", body)));
-  if (r) { P.ready = false; await LOAD.menu(); renderPage(); toast("Saved"); }
-}
+/* Orders and Menu live in live.js and manage.js */
 
 /* ---------------- rules and printers ---------------- */
 const PERM_LABELS = {
