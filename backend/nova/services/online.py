@@ -89,6 +89,7 @@ def storefront(tenant: dict) -> dict:
         "payments": {"cod": cod_available(cfg), "online": False},
         "tables": (cfg.get("pos") or {}).get("tables") or [],
         "loyalty": {"enabled": bool((cfg.get("loyalty") or {}).get("enabled"))},
+        "whatsapp": {"order_updates": (((cfg.get("integrations") or {}).get("whatsapp")) or {}).get("order_updates") is not False},
         "tax": {"mode": cfg["tax"]["mode"]},
     }
 
