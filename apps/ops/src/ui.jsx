@@ -12,6 +12,7 @@ const PATHS = {
   store: "M4 9l1-5h14l1 5M4 9v11h16V9M4 9c0 2 3 2 4 0 1 2 3 2 4 0 1 2 3 2 4 0 1 2 4 2 4 0M9 20v-6h6v6",
   chat: "M4 5h16v11H9l-5 4V5z",
   inbox: "M3 13l3-8h12l3 8M3 13v6h18v-6M3 13h5l1 3h6l1-3h5",
+  chart: "M4 20V10M10 20V4M16 20v-8M22 20H2",
   pulse: "M3 12h4l3-8 4 16 3-8h4",
   list: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
   menu: "M4 6h16M4 12h16M4 18h16",
