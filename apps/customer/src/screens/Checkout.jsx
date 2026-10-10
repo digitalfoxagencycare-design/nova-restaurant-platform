@@ -20,6 +20,8 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
   const [couponError, setCouponError] = useState(null);
   const [noteFor, setNoteFor] = useState(null);
   const [quote, setQuote] = useState({ status: "idle", data: null, error: null });
+  const [payChoice, setPayChoice] = useState("online");
+  const [wa, setWa] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [placeErr, setPlaceErr] = useState(null);
   const [geo, setGeo] = useState({ busy: false, error: "" });
@@ -123,7 +125,7 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
     if (placing) return;
     if (!token) { openSignIn(); return; }
     setPlacing(true); setPlaceErr(null);
-    const payload = { ...body, payment: "cod", notes: notes.trim(), name: me?.name || "" };
+    const payload = { ...body, payment: method, whatsapp_updates: wa, notes: notes.trim(), name: me?.name || "" };
     const s = JSON.stringify(payload);
     if (attempt.current.sig !== s) attempt.current = { sig: s, key: uuid() }; // same payload => same key => safe retry
     try {
@@ -138,6 +140,7 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
       onPlaced(order);
     } catch (e) {
       if (e.code === "OUT_OF_STOCK") handleSoldOut(e);
+      if (e.code === "PAYMENT_NOT_AVAILABLE" && method === "online") { reload(); if (sf?.payments?.cod !== false) setPayChoice("cod"); }
       if (e.status !== 401) setPlaceErr(describeError(e, { storefront: sf }));
     }
     setPlacing(false);
@@ -147,7 +150,12 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
   useEffect(() => { registerAfterSignIn?.(() => setTimeout(() => placeRef.current(), 50)); }, [registerAfterSignIn]);
 
   const codOk = sf?.payments?.cod !== false;
-  const canPlace = good.length > 0 && bad.length === 0 && readyForQuote && quote.status === "ready" && !qErr && codOk && !placing;
+  const onlineOk = !!sf?.payments?.online;
+  const method = onlineOk && (!codOk || payChoice === "online") ? "online" : "cod";
+  const methodOk = method === "online" || codOk;
+  const canPlace = good.length > 0 && bad.length === 0 && readyForQuote && quote.status === "ready" && !qErr && methodOk && !placing;
+  const total = totals ? totals.total : localSub;
+  const actionLabel = method === "online" ? `${t("pay_amount")} ${money(total)}` : t("place_order");
   const hint = mode === "delivery" && addr.text.trim().length < 6 ? "Enter your delivery address to see the delivery fee and place your order."
     : mode === "dine-in" && !table.trim() ? "Pick your table to continue." : "";
   const payLabel = mode === "delivery" ? "Pay on delivery" : "Pay at the counter";
@@ -161,8 +169,8 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
             <span className="font-display text-xl font-extrabold tabular-nums">{money(totals ? totals.total : localSub)}</span>
           </div>
           {hint && <p className="mb-2 text-[13px] font-semibold text-ink/80" role="status">{hint}</p>}
-          <Button className="w-full min-h-[52px] text-base" busy={placing} disabled={token ? !canPlace : !(good.length && bad.length === 0 && readyForQuote && quote.status === "ready" && !qErr && codOk)} onClick={place}>
-            {token ? t("place_order") : `${t("sign_in")} & ${t("place_order").toLowerCase()}`}
+          <Button className="w-full min-h-[52px] text-base" busy={placing} disabled={token ? !canPlace : !(good.length && bad.length === 0 && readyForQuote && quote.status === "ready" && !qErr && methodOk)} onClick={place}>
+            {token ? actionLabel : `${t("sign_in")} & ${actionLabel.toLowerCase()}`}
           </Button>
         </div>
       )}>
@@ -291,14 +299,41 @@ export default function Checkout({ open, onClose, onPlaced, openSignIn, goOrders
           </Field>
 
           {/* payment */}
-          <div className="flex items-center gap-3 rounded-2xl border-2 border-brand bg-brand-soft p-3">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-brand-on"><Icon name="check" size={14} stroke={3} /></span>
-            <div>
-              <p className="font-semibold">{mode === "delivery" ? t("pay_on") : payLabel}</p>
-              <p className="text-[13px] text-ink/70">{t("pay_on_hint")}</p>
-            </div>
+          <fieldset className="space-y-2">
+            <legend className="mb-1 text-[13px] font-semibold">{t("pay_how")}</legend>
+            {onlineOk && codOk ? (
+              <div role="radiogroup" aria-label={t("pay_how")} className="space-y-2">
+                {[["online", t("pay_online"), "wallet"], ["cod", t("pay_cod_delivery"), "bag"]].map(([k, label]) => (
+                  <button key={k} type="button" role="radio" aria-checked={payChoice === k} onClick={() => { setPayChoice(k); setPlaceErr(null); }}
+                    className={`active-press flex min-h-[52px] w-full items-center gap-3 rounded-2xl border-2 p-3 text-left ${payChoice === k ? "border-brand bg-brand-soft" : "border-line bg-white"}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${payChoice === k ? "border-brand bg-brand text-brand-on" : "border-line bg-white"}`}>{payChoice === k && <Icon name="check" size={14} stroke={3} />}</span>
+                    <span className="font-semibold">{label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : onlineOk ? (
+              <div className="flex items-center gap-3 rounded-2xl border-2 border-brand bg-brand-soft p-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-brand-on"><Icon name="check" size={14} stroke={3} /></span>
+                <p className="font-semibold">{t("pay_online")}</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-2xl border-2 border-brand bg-brand-soft p-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-brand-on"><Icon name="check" size={14} stroke={3} /></span>
+                <div>
+                  <p className="font-semibold">{mode === "delivery" ? t("pay_on") : payLabel}</p>
+                  <p className="text-[13px] text-ink/70">{t("pay_on_hint")}</p>
+                </div>
+              </div>
+            )}
+          </fieldset>
+          {!codOk && !onlineOk && <Banner tone="warn">Pay-on-delivery is not available at this hour. Please try again a little later.</Banner>}
+
+          <div>
+            <label className="flex min-h-[44px] items-center gap-3 text-[14px] font-semibold">
+              <input type="checkbox" className="h-5 w-5 accent-[rgb(var(--accent))]" checked={wa} onChange={(e) => setWa(e.target.checked)} />{t("wa_updates")}
+            </label>
+            <p className="pl-8 text-[12px] text-ink/70">{t("wa_note")}</p>
           </div>
-          {!codOk && <Banner tone="warn">Pay-on-delivery is not available at this hour. Please try again a little later.</Banner>}
 
           {/* totals */}
           <div className="rounded-2xl border border-line bg-white p-3" aria-live="polite" aria-busy={quote.status === "loading"}>
