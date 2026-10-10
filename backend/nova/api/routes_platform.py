@@ -40,7 +40,7 @@ async def create_tenant(
 ):
     tenant, token = await tenant_svc.create_tenant(pdb, lambda tid: tenant_db_for(request, tid), s, body.config, body.owner_email, body.plan)
     await platform_audit(pdb, p.email, "tenant.create", tenant["_id"], {"slug": tenant["slug"]})
-    return {"id": tenant["_id"], "slug": tenant["slug"], "owner_invite_token": token}
+    return {"id": tenant["_id"], "slug": tenant["slug"], "owner_invite_token": token, "invite_expires_hours": s.invite_ttl_hours}
 
 
 @router.post("/tenants/{tenant_id}/suspend", status_code=204)

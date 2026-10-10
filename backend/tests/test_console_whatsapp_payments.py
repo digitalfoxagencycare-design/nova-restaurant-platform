@@ -450,3 +450,26 @@ async def test_usage_overview_and_export_hide_secrets(client, shop, fake):
     for secret in ("password_hash", KEY_SECRET, WA_TOKEN, WEBHOOK):
         assert secret not in ex.text
     assert tenant_cfg("x")["slug"] == "x"
+
+
+async def test_single_order_view_expires_unpaid_orders_and_storefront_reports_whatsapp_setting(client, shop, fake, database):
+    await connect_whatsapp(client, shop)
+    await set_razorpay(client, shop)
+    cust = await customer(client, fake)
+    o = (await client.post("/v2/me/orders", headers=cust, json=order_body(shop, payment="online"))).json()
+    await database["bills"].update_one({"channel": "online"}, {"$set": {"created_at": "2020-01-01T00:00:00+00:00"}})
+    assert (await client.get(f"/v2/me/orders/{o['id']}", headers=cust)).json()["status"] == "cancelled"
+    assert (await client.get("/v2/public/spice-route/storefront")).json()["whatsapp"] == {"order_updates": True}
+
+
+async def test_audit_can_be_narrowed_to_one_restaurant_and_creation_reports_invite_expiry(client, platform_token):
+    p = H(platform_token)
+    made = []
+    for slug in ("alpha-grill", "beta-grill"):
+        tpl = (await client.get(f"/v2/platform/tenant-template?slug={slug}&name={slug}", headers=p)).json()
+        r = await client.post("/v2/platform/tenants", headers=p, json={"config": tpl, "owner_email": f"o@{slug}.example.com"})
+        assert r.status_code == 201 and r.json()["invite_expires_hours"] == 72
+        made.append(r.json()["id"])
+        await client.put(f"/v2/platform/tenants/{made[-1]}/plan", headers=p, json={"plan": "pro"})
+    only = (await client.get(f"/v2/platform/audit?target={made[0]}", headers=p)).json()
+    assert only and all(a["target"] == made[0] for a in only)
