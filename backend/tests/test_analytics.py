@@ -119,3 +119,11 @@ async def test_platform_view_spans_restaurants_and_opens_a_bill(client, busy, pl
     # restaurant staff cannot use the platform routes
     assert (await client.get("/v2/platform/analytics/breakdown", headers=H(busy["owner"]))).status_code in (401, 403)
     assert (await client.get(f"/v2/platform/analytics/bill/nope/{row['id']}", headers=H(p))).status_code == 404
+
+
+async def test_a_bill_opens_with_its_activity_log_for_staff(client, busy):
+    """The drill-down drawer shows who did what: counter and online bills open through the same staff endpoint."""
+    rec = (await get(client, busy["owner"], "/v2/analytics/records", limit=1)).json()["rows"][0]
+    full = (await get(client, busy["owner"], f"/v2/orders/{rec['id']}")).json()
+    assert [h["action"] for h in full["history"]][0] == "create" and "pay" in [h["action"] for h in full["history"]]
+    assert full["payments"] and full["state"] == "paid"

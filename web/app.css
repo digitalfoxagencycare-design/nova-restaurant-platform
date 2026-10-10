@@ -101,7 +101,7 @@ select.inp{padding:0 10px}
 .drill{display:grid;gap:14px}
 .dbar{display:grid;gap:8px}
 .dbar1,.dbar2{flex-wrap:wrap}
-.dpresets button{min-height:36px;padding:0 12px}
+.dpresets{flex-wrap:wrap}.dpresets button{min-height:36px;padding:0 12px;white-space:nowrap}
 .dinp{min-height:36px;width:auto;padding:0 8px;font-size:13px}
 .dcustom{flex-wrap:wrap}
 .dchk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--soft);min-height:32px}
