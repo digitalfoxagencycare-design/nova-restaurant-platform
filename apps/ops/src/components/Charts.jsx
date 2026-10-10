@@ -92,8 +92,8 @@ export function Donut({ items, total, centerLabel, onPick, title, selected }) {
               <path key={it.key} d={d} fill={it.color} stroke="#fff" strokeWidth="2" opacity={dim ? 0.45 : 1} {...props} onMouseEnter={on(it)} onMouseLeave={off} onFocus={on(it)} onBlur={off} className="outline-none transition-opacity focus-visible:stroke-[#EF4B2B] focus-visible:[stroke-width:4]" data-testid="slice" data-key={it.key} data-selected={selected === it.key || undefined} />
             );
           })}
-          <text x={c} y={c - 4} textAnchor="middle" className="fill-ink" style={{ font: "800 19px var(--font-display)" }}>{cur ? cur.text : total}</text>
-          <text x={c} y={c + 16} textAnchor="middle" className="fill-ink/70" style={{ font: "600 12px var(--font-body)" }}>{cur ? share(cur.fraction) : centerLabel}</text>
+          <text x={c} y={c - 4} textAnchor="middle" pointerEvents="none" className="fill-ink" style={{ font: "800 19px var(--font-display)" }}>{cur ? cur.text : total}</text>
+          <text x={c} y={c + 16} textAnchor="middle" pointerEvents="none" className="fill-ink/70" style={{ font: "600 12px var(--font-body)" }}>{cur ? share(cur.fraction) : centerLabel}</text>
         </svg>
         {node}
       </div>

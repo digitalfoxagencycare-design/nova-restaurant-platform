@@ -89,7 +89,7 @@ export default function Drill({ lock, defaultBy = "restaurant" }) {
       {bd.error ? (
         <div className="mt-4"><ErrorBox text={niceError(bd.error)} onRetry={bd.retry} /></div>
       ) : showSkeleton ? (
-        <div className="mt-4 space-y-4" role="status" aria-label="Loading the figures"><div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div><Skeleton className="h-72" /></div>
+        <div className="mt-4 space-y-4" role="status" aria-label="Loading the figures"><div className="grid grid-cols-2 gap-3 md:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div><Skeleton className="h-72" /></div>
       ) : (
         <div className={cx("transition-opacity", bd.loading && "opacity-60")} aria-busy={bd.loading || undefined}>
           <Kpis d={d} s={s} update={update} />
@@ -110,7 +110,7 @@ export default function Drill({ lock, defaultBy = "restaurant" }) {
             {d.totals.orders === 0 ? (
               <Empty icon="search" title="Nothing here" hint="No bills match these dates and filters. Try a longer date range or remove a filter." action={<Button onClick={() => update({ filters: s.filters.filter(locked), bills: false })}>Clear the filters</Button>} />
             ) : (
-              <ChartArea d={d} s={s} by={by} isTime={isTime} M={M} pick={pick} />
+              <ChartArea key={by + fkey + s.m} d={d} s={s} by={by} isTime={isTime} M={M} pick={pick} />
             )}
           </Card>
 
@@ -212,7 +212,7 @@ function Layers({ s, lock, labelOf, update, popTo, removeAt }) {
 function Kpis({ d, s, update }) {
   const prev = s.compare ? d.previous : null;
   return (
-    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" role="group" aria-label="Choose what to measure" data-testid="kpis">
+    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3" role="group" aria-label="Choose what to measure" data-testid="kpis">
       {MEASURES.map((m) => {
         const v = d.totals[m.key];
         const dl = prev ? delta(v, prev[m.key]) : null;
@@ -308,7 +308,7 @@ function BreakdownTable({ d, by, M, isTime, pick }) {
   }, [d.rows, sort, isTime, M.key]);
   const max = Math.max(1, ...d.rows.map((r) => r[M.key] || 0));
   const th = (key, label, right) => (
-    <th scope="col" aria-sort={sort.key === key ? (sort.dir > 0 ? "ascending" : "descending") : "none"} className={cx("px-3 py-2 font-semibold", right && "text-right")}>
+    <th key={key} scope="col" aria-sort={sort.key === key ? (sort.dir > 0 ? "ascending" : "descending") : "none"} className={cx("px-3 py-2 font-semibold", right && "text-right")}>
       <button type="button" onClick={() => setSort((p) => ({ key, dir: p.key === key ? -p.dir : key === "label" ? -1 : -1 }))} className={cx("inline-flex min-h-[36px] items-center gap-1 whitespace-nowrap hover:text-brand", sort.key === key && "text-brand")}>
         {label}<span aria-hidden="true" className="text-[11px]">{sort.key === key ? (sort.dir > 0 ? "▲" : "▼") : ""}</span>
       </button>
