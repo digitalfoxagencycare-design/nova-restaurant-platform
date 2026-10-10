@@ -439,4 +439,5 @@ def staff_view(b: dict) -> dict:
         out["online"] = {k: v for k, v in out["online"].items() if k not in ("delivery_code", "delivery_code_tries")}
     out["state"] = b["online"]["status"] if b.get("channel") == "online" else b["status"]
     out["totals"] = {k: v for k, v in b["totals"].items() if k != "lines"}
+    out["history"] = b.get("history", [])   # who did what, for the bill drawer; staff-only, never in customer_view
     return out

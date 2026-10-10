@@ -6,11 +6,13 @@ import { go, href } from "../lib/router";
 import { ContactFields, LookFeelEditor, SellingFields } from "../Editors";
 import ClientAccess from "../ClientAccess";
 import Checklist from "../Checklist";
+import Drill from "../components/Drill";
 import { Avatar, Button, Card, Chip, CopyRow, Dialog, Empty, ErrorBox, Icon, Notice, Page, Qr, SelectField, Skeleton, SkeletonPage, Tabs, TextField, useToast } from "../ui";
 import { PLAN_LABEL, SalesChart, StatTile, describeAudit, statusChip, when } from "./common";
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "analytics", label: "Analytics" },
   { id: "look", label: "Look & feel" },
   { id: "settings", label: "Settings" },
   { id: "payments", label: "Payments" },
@@ -100,6 +102,7 @@ function Loaded({ d, tab, reload }) {
       <div id="tabpanel" role="tabpanel" aria-labelledby={"tab-" + tab}>
         {d.status === "suspended" ? <Notice tone="warn" title="This restaurant is paused" className="mb-4">Customers cannot see the ordering page or place orders. Go to Access to resume it.</Notice> : null}
         {tab === "overview" ? <OverviewTab d={d} /> : null}
+        {tab === "analytics" ? <Drill key={d.id} lock={{ dim: "restaurant", value: d.id, label: brand.name }} defaultBy="day" /> : null}
         {tab === "look" ? (
           <>
             <Card className="mb-6 max-w-xl"><TextField label="Restaurant name" value={form.name} onChange={(e) => set({ name: e.target.value })} error={errors.name} /></Card>

@@ -56,12 +56,12 @@ export default function Overview() {
     <Page
       title="Overview"
       subtitle="How the business is doing right now."
-      actions={<LinkButton variant="primary" href={href("/restaurants/new")}><Icon name="plus" className="h-4 w-4" />Add a restaurant</LinkButton>}
+      actions={<div className="flex flex-wrap gap-2"><LinkButton href={href("/analytics")}><Icon name="chart" className="h-4 w-4" />Analytics</LinkButton><LinkButton variant="primary" href={href("/restaurants/new")}><Icon name="plus" className="h-4 w-4" />Add a restaurant</LinkButton></div>}
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" data-testid="tiles">
         <StatTile label="Active restaurants" value={active} sub={o.tenants.suspended ? `${o.tenants.suspended} paused` : "None paused"} to="/restaurants" />
-        <StatTile label="Orders, last 30 days" value={o.orders_30d} />
-        <StatTile label="Sales, last 30 days" value={money(o.gmv_30d)} />
+        <StatTile label="Orders, last 30 days" value={o.orders_30d} sub="See where they came from" to="/analytics?m=orders&by=restaurant" />
+        <StatTile label="Sales, last 30 days" value={money(o.gmv_30d)} sub="Look inside, restaurant by restaurant" to="/analytics?by=restaurant" />
         <StatTile label="New enquiries" value={o.leads_new} sub={o.leads_new ? "Waiting for a reply" : "All answered"} to="/enquiries" />
         <StatTile label="WhatsApp" value={o.whatsapp.connected ? "Connected" : "Not connected"} tone={o.whatsapp.connected ? "good" : "bad"} sub={`${o.whatsapp.sent_30d} sent, ${o.whatsapp.failed_30d} failed (30 days)`} to="/whatsapp" />
       </div>

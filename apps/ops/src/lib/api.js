@@ -78,7 +78,37 @@ export async function uploadLogo(id, blob) {
   return data;
 }
 
+/** Download a file the API makes (CSV) with the sign-in token, then hand it to the browser as a Blob. */
+export async function downloadAuthed(path, fallbackName) {
+  let res;
+  try {
+    res = await fetch(API_BASE + path, { headers: { Authorization: `Bearer ${getSession()?.token || ""}` } });
+  } catch {
+    throw Object.assign(new Error("Cannot reach the server. Check your internet and try again."), { code: "NETWORK" });
+  }
+  if (!res.ok) {
+    let d = null;
+    try { d = (await res.json())?.detail; } catch { /* not json */ }
+    if (res.status === 401 && read()) { sessionState.expired = true; clearSession(); }
+    throw Object.assign(new Error(d?.message || "The file could not be made."), { code: d?.code || "ERROR", status: res.status });
+  }
+  const blob = await res.blob();
+  const name = /filename="?([^";]+)"?/.exec(res.headers.get("Content-Disposition") || "")?.[1] || fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return { name, truncated: res.headers.get("X-Truncated") === "true" };
+}
+
 const FRIENDLY = {
+  TOO_MANY_ROWS: (e) => e.message,
+  BAD_RANGE: (e) => e.message,
+  BAD_DATE: (e) => e.message,
   NETWORK: () => "We cannot reach the Nova server. Check your internet connection and try again.",
   TIMEOUT: () => "The server is taking too long to answer. Please try again in a moment.",
   SLUG_TAKEN: () => "That web address is already used by another restaurant. Please choose a different one.",
