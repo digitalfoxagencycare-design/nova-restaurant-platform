@@ -10,7 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..core.config import Settings
 from ..core.errors import forbidden, unauthorized
-from ..core.permissions import has_permission, permissions_for
+from ..core.permissions import effective_permissions, has_permission, permissions_for
 from ..core.security import TokenError, decode_token
 from ..tenancy.db import PlatformDB, TenantDB
 
@@ -25,6 +25,7 @@ class Principal:
     email: str
     tenant_id: str | None
     permissions: frozenset[str]
+    config: dict | None = None
 
 
 def get_settings(request: Request) -> Settings:
@@ -76,7 +77,8 @@ async def get_principal(
     user = await _load_user(tdb.users, claims["sub"])
     if not user or user.get("status") != "active" or user.get("token_version", 0) != claims.get("ver", 0):
         raise unauthorized("Session revoked")
-    return Principal("tenant", str(user["_id"]), user["role"], user["email"], tid, permissions_for(user["role"]))
+    cfg = tenant.get("config") or {}
+    return Principal("tenant", str(user["_id"]), user["role"], user["email"], tid, effective_permissions(user["role"], cfg), cfg)
 
 
 async def require_tenant_principal(p: Principal = Depends(get_principal)) -> Principal:

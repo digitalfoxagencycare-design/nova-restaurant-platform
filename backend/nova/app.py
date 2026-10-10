@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.cors import CORSMiddleware
 
-from .api import routes_platform, routes_public, routes_tenant
+from .api import routes_platform, routes_pos, routes_public, routes_tenant
 from .core.config import Settings
 from .core.startup_checks import assert_safe_startup
 from .tenancy.db import ensure_indexes
@@ -31,5 +34,27 @@ def create_app(settings: Settings | None = None, database=None) -> FastAPI:
 
     app.include_router(routes_public.router)
     app.include_router(routes_tenant.router)
+    app.include_router(routes_pos.router)
     app.include_router(routes_platform.router)
+
+    web = Path(__file__).resolve().parents[2] / "web"
+    if web.is_dir():
+        @app.middleware("http")
+        async def web_headers(request, call_next):
+            resp = await call_next(request)
+            if request.url.path.startswith("/app"):
+                resp.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                    "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8989 http://localhost:8989; "
+                    "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+                )
+                resp.headers["X-Content-Type-Options"] = "nosniff"
+                resp.headers["Referrer-Policy"] = "same-origin"
+            return resp
+
+        app.mount("/app", StaticFiles(directory=web, html=True), name="web")
+
+        @app.get("/", include_in_schema=False)
+        async def root():
+            return RedirectResponse("/app/")
     return app

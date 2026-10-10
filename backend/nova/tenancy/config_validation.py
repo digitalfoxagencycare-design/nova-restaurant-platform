@@ -60,6 +60,14 @@ def validate_tenant_config(cfg: dict[str, Any], schema_path: Path) -> dict[str, 
     lo = cfg.get("loyalty") or {}
     if lo.get("enabled") and not lo.get("earn_per_rupees"):
         biz.append("loyalty.earn_per_rupees is required when loyalty is enabled")
+    pos = cfg.get("pos") or {}
+    ids = [pr["id"] for pr in pos.get("printers") or []]
+    if len(ids) != len(set(ids)):
+        biz.append("pos.printers ids must be unique")
+    for role, rule in (pos.get("roles") or {}).items():
+        both = set(rule.get("grant", [])) & set(rule.get("revoke", []))
+        if both:
+            biz.append(f"pos.roles.{role} both grants and revokes {sorted(both)}")
     secrets_like = json.dumps(cfg.get("integrations") or {})
     if re.search(r"(EAA[A-Za-z0-9]{20,}|rzp_(live|test)_[A-Za-z0-9]{8,}|mongodb(\+srv)?://[^\s\"']+:[^\s\"']+@)", secrets_like):
         biz.append("integrations must hold references (secret_ref), never secret values")

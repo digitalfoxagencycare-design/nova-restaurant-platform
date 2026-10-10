@@ -23,6 +23,7 @@ TENANT_COLLECTIONS = frozenset({
     "outlets", "users", "sessions", "customers", "menu_items", "orders", "coupons", "tables",
     "loyalty_transactions", "payment_logs", "login_attempts", "otp_verifications",
     "driver_locations", "device_tokens", "counters", "usage_events", "audit_log", "rollups", "invites",
+    "bills", "kot_tickets", "approvals", "idempotency",
 })
 
 FORBIDDEN_OPERATORS = frozenset({"$where", "$function", "$accumulator", "$expr_js"})
@@ -196,6 +197,10 @@ async def ensure_indexes(database) -> None:
         "invites": [([("tenant_id", 1), ("token_hash", 1)], True)],
         "counters": [([("tenant_id", 1), ("key", 1)], True)],
         "audit_log": [([("tenant_id", 1), ("ts", -1)], False)],
+        "bills": [([("tenant_id", 1), ("bill_no", 1)], True), ([("tenant_id", 1), ("status", 1), ("created_at", -1)], False)],
+        "kot_tickets": [([("tenant_id", 1), ("bill_id", 1), ("batch", 1)], True), ([("tenant_id", 1), ("status", 1), ("created_at", 1)], False)],
+        "approvals": [([("tenant_id", 1), ("jti", 1)], True)],
+        "idempotency": [([("tenant_id", 1), ("key", 1)], True)],
     }
     for coll, idx in spec.items():
         for keys, unique in idx:

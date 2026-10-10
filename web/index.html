@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nova Restaurant OS</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23c7f36b'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' font-family='sans-serif' font-weight='700' fill='%2310192b'%3EN%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="login" hidden></div>
+<div class="app" id="shell" hidden>
+  <aside id="side"></aside>
+  <div class="col">
+    <div class="top">
+      <button class="ib menu" id="menu" aria-label="Open menu">☰</button>
+      <button class="cmd" id="cmd"><span>⌕</span> Jump to a page <kbd>Ctrl K</kbd></button>
+      <div class="sp"></div>
+      <span id="agent" class="pill p-mute" title="Thermal printer bridge on this computer">Printer: checking</span>
+      <button class="ib" id="theme" aria-label="Toggle theme">◐</button>
+      <button class="btn sm" id="logout">Log out</button>
+    </div>
+    <main class="stage" id="stage" tabindex="-1"></main>
+  </div>
+</div>
+<div id="layer"></div>
+<script src="ui.js"></script>
+<script src="api.js"></script>
+<script src="sample.js"></script>
+<script src="pos.js"></script>
+<script src="screens.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

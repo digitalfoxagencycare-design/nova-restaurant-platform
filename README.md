@@ -18,6 +18,8 @@ Derived from a real, working single-restaurant system (`HyderabadiIrani`): store
 | 7 | [docs/07-roadmap.md](docs/07-roadmap.md) | Phases with exit criteria |
 | 8 | [docs/08-security-findings.md](docs/08-security-findings.md) | Issues found in the source that must not be inherited |
 | 9 | [docs/09-fit-check.md](docs/09-fit-check.md) | Which businesses fit, and an onboarding questionnaire |
+| 10 | [docs/10-phase-0-1.md](docs/10-phase-0-1.md) | What phases 0 and 1 built |
+| 11 | [docs/11-pos-printing-permissions.md](docs/11-pos-printing-permissions.md) | POS, billing, TVS/ESC-POS printing, role rules and approvals |
 
 Design prototype: [`design/master-dashboard.html`](design/master-dashboard.html) (open in a browser; sample data).
 Config schema: [`config/tenant.schema.json`](config/tenant.schema.json) and an example derived from the source: [`config/tenants/hyderabadi-irani.example.json`](config/tenants/hyderabadi-irani.example.json).
@@ -35,7 +37,7 @@ make install          # backend dependencies
 make check            # lint + secret scan + 61 tests
 cp backend/.env.example backend/.env   # then put real random keys in it
 python -m nova.cli create-platform-admin --email you@example.com   # prompts for a password; none is ever seeded
-make run              # http://localhost:8000/docs
+make run              # API docs: http://localhost:8000/docs   POS web app: http://localhost:8000/app/
 ```
 What exists today: tenant model + validated config, a data layer that makes cross-tenant access impossible, login with
 refresh-token rotation, roles/permissions, invite-based onboarding, audit log, startup safety checks. See
