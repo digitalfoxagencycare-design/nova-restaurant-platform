@@ -33,7 +33,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "delivery": frozenset({"orders.view", "orders.update.delivery"}),
     "viewer": frozenset({"orders.view", "menu.view", "reports.view", "config.view", "bills.view"}),
 }
-PLATFORM_ROLES = {"platform_admin": frozenset({ALL}), "support": frozenset({"platform.tenants.view"})}
+PLATFORM_ROLES = {"platform_admin": frozenset({ALL}), "support": frozenset({"platform.tenants.view", "platform.leads.manage"})}
 
 # Limits that sit next to the permissions. ``None`` means no limit. Tenants override these in config ``pos.limits``.
 DEFAULT_LIMITS: dict[str, dict[str, Any]] = {

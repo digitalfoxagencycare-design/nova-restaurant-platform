@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from ..api.deps import Principal
@@ -105,6 +105,21 @@ async def public_menu(tdb: TenantDB) -> dict:
     return {"categories": cats, "items": items}
 
 
+def _expired(valid_to: str | None) -> bool:
+    """``valid_to`` may be a date (valid through the end of that day, UTC) or a full timestamp."""
+    if not valid_to:
+        return False
+    try:
+        end = datetime.fromisoformat(valid_to)
+    except ValueError:
+        return True
+    if len(valid_to) <= 10:
+        end = end.replace(hour=23, minute=59, second=59)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    return end < _now()
+
+
 # ------------------------------------------------------------------ pricing
 async def price_cart(tdb: TenantDB, cfg: dict, body: dict) -> dict:
     """Validate a cart and return everything the bill needs. Raises ApiError with stable codes."""
@@ -175,7 +190,7 @@ async def price_cart(tdb: TenantDB, cfg: dict, body: dict) -> dict:
     code = (body.get("coupon") or "").strip().upper()
     if code:
         c = await tdb.coupons.find_one({"code": code})
-        if not c or not c.get("active", True) or (c.get("valid_to") and c["valid_to"] < _iso()):
+        if not c or not c.get("active", True) or _expired(c.get("valid_to")):
             raise ApiError(409, "COUPON_INVALID", "This offer is not valid")
         if food < int(c.get("min_subtotal", 0)):
             raise ApiError(409, "COUPON_MIN", f"Add ₹{(c['min_subtotal'] - food) / 100:g} more to use {code}", min_subtotal=int(c["min_subtotal"]))
@@ -198,12 +213,14 @@ def quote_view(priced: dict) -> dict:
 
 
 def _line_view(ln: dict) -> dict:
-    return {"name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
+    return {"item_id": ln["item_id"], "name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
 
 
 # ------------------------------------------------------------------ placing
-async def place_order(tdb: TenantDB, cfg: dict, customer: dict, body: dict, idem_key: str | None) -> dict:
+async def place_order(tdb: TenantDB, cfg: dict, customer: dict, body: dict, idem_key: str | None, *, pay=None, notify=None) -> dict:
+    """``pay`` is a checkout object (see services/payments.Checkout) when online payment is available for this restaurant."""
     cid = str(customer["_id"])
+    await expire_pending(tdb, cfg)
     if idem_key:
         seen = await tdb.idempotency.find_one({"key": f"order:{cid}:{idem_key}"})
         if seen:
@@ -212,9 +229,11 @@ async def place_order(tdb: TenantDB, cfg: dict, customer: dict, body: dict, idem
     if active >= MAX_ACTIVE_PER_CUSTOMER:
         raise ApiError(409, "TOO_MANY_ACTIVE", "You already have several orders in progress")
     method = body.get("payment", "cod")
-    if method != "cod":
-        raise ApiError(409, "PAYMENT_NOT_AVAILABLE", "Pay when the order arrives (cash or UPI)")
-    if not cod_available(cfg):
+    if method not in ("cod", "online"):
+        raise ApiError(409, "PAYMENT_NOT_AVAILABLE", "Choose how you want to pay")
+    if method == "online" and pay is None:
+        raise ApiError(409, "PAYMENT_NOT_AVAILABLE", "Online payment is not available. Choose pay on delivery.")
+    if method == "cod" and not cod_available(cfg):
         raise ApiError(409, "COD_UNAVAILABLE", "Pay-on-delivery is not available at this hour")
     priced = await price_cart(tdb, cfg, body)
     otype = priced["type"]
@@ -228,10 +247,12 @@ async def place_order(tdb: TenantDB, cfg: dict, customer: dict, body: dict, idem
         "revision": 0, "kot_batches": 0, "reprints": 0, "created_by": f"customer:{customer['phone']}", "created_at": now,
         "business_date": svc.business_date(cfg), "totals": priced["totals"], "channel": "online",
         "online": {
-            "status": "placed", "customer_id": cid, "type": otype, "address": priced["address"], "distance_km": priced["distance_km"],
+            "status": "pending_payment" if method == "online" else "placed", "customer_id": cid,
+            "whatsapp_updates": body.get("whatsapp_updates", True) is not False, "type": otype,
+            "address": priced["address"], "distance_km": priced["distance_km"],
             "payment_method": method, "notes": notes, "driver": None, "placed_at": now,
             "delivery_code": f"{secrets.randbelow(10**4):04d}" if otype == "delivery" else None, "delivery_code_tries": 0,
-            "coupon": priced["coupon"], "timeline": [{"status": "placed", "at": now, "by": "customer"}],
+            "coupon": priced["coupon"], "timeline": [{"status": "pending_payment" if method == "online" else "placed", "at": now, "by": "customer"}],
         },
     }
     svc._history(b, f"customer:{customer['phone']}", "online_order")
@@ -240,9 +261,52 @@ async def place_order(tdb: TenantDB, cfg: dict, customer: dict, body: dict, idem
     if idem_key:
         await tdb.idempotency.update_one({"key": f"order:{cid}:{idem_key}"}, {"$set": {"at": now, "bill_id": str(b["_id"])}}, upsert=True)
     await audit(tdb, f"customer:{customer['phone']}", "order.place", str(b["bill_no"]), {"total": b["totals"]["total"], "type": otype})
+    if method == "online":
+        try:
+            b["online"]["payment"] = await pay.begin(b)
+        except ApiError:
+            b["status"], b["online"]["status"] = "void", "cancelled"
+            b["void"] = {"reason": "Payment could not be started", "by": "system", "at": _iso()}
+            await svc._save(tdb, b, cfg, None)
+            raise
+        return await svc._save(tdb, b, cfg, None)      # becomes a real order only when the payment is confirmed
+    return await _accepted(tdb, cfg, b, notify)
+
+
+async def _accepted(tdb: TenantDB, cfg: dict, b: dict, notify) -> dict:
+    """A confirmed order: tell the customer, and start cooking at once when the restaurant auto-accepts."""
+    if notify:
+        notify.order_event(tdb, b, "placed")
     if (cfg.get("ordering") or {}).get("auto_accept"):
-        b = await advance(tdb, cfg, b, "preparing", "system@nova")
+        b = await advance(tdb, cfg, b, "preparing", "system@nova", notify=notify)
     return b
+
+
+async def expire_pending(tdb: TenantDB, cfg: dict) -> None:
+    """Online orders whose payment was never completed are cancelled after a while, so they do not pile up."""
+    cutoff = (_now() - timedelta(minutes=20)).isoformat()
+    async for b in tdb.bills.find({"channel": "online", "online.status": "pending_payment", "created_at": {"$lt": cutoff}}):
+        await advance(tdb, cfg, b, "cancelled", "system@nova", reason="Payment was not completed")
+
+
+async def confirm_online_payment(tdb: TenantDB, cfg: dict, b: dict, payment_id: str, source: str, notify=None) -> dict:
+    """Payment confirmed (signature from the app, or webhook). Safe to call twice: the second call changes nothing."""
+    o = _need_online(b)
+    if any(p.get("ref") == payment_id for p in b["payments"]):
+        return b
+    if o["status"] != "pending_payment" or b["status"] != "open":
+        raise ApiError(409, "NOT_PENDING", "This order is not waiting for payment")
+    total, now = b["totals"]["total"], _iso()
+    b["payments"].append({"id": uuid.uuid4().hex[:8], "mode": "online", "amount": total, "tendered": total, "change": 0,
+                          "ref": payment_id, "at": now, "by": source})
+    o["status"] = "placed"
+    o["payment"]["status"] = "paid"
+    o.setdefault("timeline", []).append({"status": "placed", "at": now, "by": source})
+    b["online"] = o
+    svc._history(b, source, "online_paid", {"payment": payment_id})
+    b = await svc._save(tdb, b, cfg, None)      # the bill stays open until the order is closed, so the kitchen ticket can still be sent
+    await audit(tdb, source, "order.paid", str(b["bill_no"]), {"payment": payment_id})
+    return await _accepted(tdb, cfg, b, notify)
 
 
 # ------------------------------------------------------------------ status changes
@@ -252,7 +316,8 @@ def _need_online(b: dict) -> dict:
     return b["online"]
 
 
-async def advance(tdb: TenantDB, cfg: dict, b: dict, to: str, actor: str, *, collect: dict | None = None, reason: str = "", via_driver: bool = False) -> dict:
+async def advance(tdb: TenantDB, cfg: dict, b: dict, to: str, actor: str, *, collect: dict | None = None, reason: str = "", via_driver: bool = False,
+                  notify=None, refunder=None) -> dict:
     o = _need_online(b)
     cur, otype = o["status"], o["type"]
     if cur in FINAL:
@@ -266,7 +331,7 @@ async def advance(tdb: TenantDB, cfg: dict, b: dict, to: str, actor: str, *, col
         if len(reason) < 3:
             raise bad_request("REASON_REQUIRED", "Please give a short reason")
         if b["payments"]:
-            raise bad_request("HAS_PAYMENTS", "Money was already taken. Refund it first.")
+            b = await _refund_all(b, reason, actor, refunder)
         b["status"] = "void"
         b["void"] = {"reason": reason[:200], "by": actor, "at": now}
         await tdb.kot_tickets.update_many({"bill_id": str(b["_id"]), "status": {"$in": ["new", "cooking"]}},
@@ -289,8 +354,26 @@ async def advance(tdb: TenantDB, cfg: dict, b: dict, to: str, actor: str, *, col
     o.setdefault("timeline", []).append({"status": to, "at": now, "by": actor, **({"reason": reason} if reason else {})})
     b["online"] = o
     svc._history(b, actor, f"online_{to}", {"reason": reason} if reason else None)
+    if to != "cancelled" and b["status"] == "open" and b["payments"] and calc.balance(b) <= 0 and to == flow[-1]:
+        b["status"], b["closed_at"] = "paid", now          # paid online earlier: it is a finished sale now
     b = await svc._save(tdb, b, cfg, None)
     await audit(tdb, actor, f"order.{to}", str(b["bill_no"]), {"reason": reason} if reason else None)
+    if notify:
+        notify.order_event(tdb, b, to)
+    return b
+
+
+async def _refund_all(b: dict, reason: str, actor: str, refunder) -> dict:
+    """Cancelling an order that was paid online: give the money back through the payment provider first."""
+    if refunder is None or any(p["mode"] != "online" for p in b["payments"]):
+        raise bad_request("HAS_PAYMENTS", "Money was already taken at the counter. Refund it from the bill first.")
+    done = {r.get("payment_ref") for r in b["refunds"]}
+    for p in b["payments"]:
+        if p["ref"] in done:
+            continue
+        res = await refunder(p["ref"], p["amount"])
+        b["refunds"].append({"id": uuid.uuid4().hex[:8], "amount": p["amount"], "mode": "online", "reason": (reason or "Cancelled")[:200], "by": actor,
+                             "at": _iso(), "payment_ref": p["ref"], "ref": res.get("id", "")})
     return b
 
 
@@ -333,8 +416,12 @@ def customer_view(b: dict) -> dict:
     return {
         "id": str(b["_id"]), "order_no": b["bill_no"], "type": o["type"], "status": o["status"], "placed_at": o["placed_at"],
         "timeline": [{"status": t["status"], "at": t["at"]} for t in o.get("timeline", [])], "lines": [_line_view(ln) for ln in b["lines"]],
-        "totals": {k: v for k, v in b["totals"].items() if k != "lines"}, "payment": {"method": o["payment_method"], "paid": b["status"] == "paid",
-                                                                                      "due": max(0, calc.balance(b)) if b["status"] != "void" else 0},
+        "totals": {k: v for k, v in b["totals"].items() if k != "lines"},
+        "payment": {"method": o["payment_method"], "paid": bool(b["payments"]) and calc.balance(b) <= 0,
+                    "due": max(0, calc.balance(b)) if b["status"] != "void" else 0,
+                    "refunded": sum(r["amount"] for r in b["refunds"]),
+                    **({"checkout": {k: o["payment"][k] for k in ("provider", "order_id", "key_id", "amount")}}
+                       if o["status"] == "pending_payment" and o.get("payment") else {})},
         "address": o.get("address"), "table": b.get("table"), "notes": o.get("notes", ""), "coupon": o.get("coupon"),
         "delivery_code": o.get("delivery_code") if o["status"] not in FINAL else None,
         "driver": {"name": drv["name"], "phone": drv["phone"]} if drv else None,

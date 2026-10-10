@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     max_failed_logins: int = 5
     lockout_minutes: int = 15
     invite_ttl_hours: int = 72
+    # 32 url-safe base64 bytes (Fernet). Encrypts tenant payment keys and the WhatsApp token at rest. Required in production.
+    secrets_key: str = ""
+    # Public address customers use to open the ordering site (tracking links in WhatsApp messages), e.g. https://order.example.com
+    public_base_url: str = ""
+    razorpay_api_base: str = "https://api.razorpay.com"
+    whatsapp_api_base: str = "https://graph.facebook.com"
     tenant_schema_path: Path = REPO_ROOT / "config" / "tenant.schema.json"
 
     @field_validator("jwt_keys", mode="before")

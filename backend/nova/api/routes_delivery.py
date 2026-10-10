@@ -6,15 +6,16 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..core.errors import ApiError, bad_request, not_found
 from ..services import online as svc
+from ..services import whatsapp as wa_svc
 from ..services.audit import audit
 from ..services.billing import PAY_MODES, _load
 from ..tenancy.db import TenantDB
-from .deps import Principal, get_tdb, require_permission
+from .deps import Principal, get_tdb, get_tenant_record, require_permission
 
 router = APIRouter(prefix="/v2/delivery")
 PERM = "orders.update.delivery"
@@ -52,38 +53,46 @@ async def orders(tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(requir
 
 
 @router.post("/orders/{order_id}/accept")
-async def accept(order_id: str, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM))):
+async def accept(order_id: str, request: Request, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM)),
+                 t: dict = Depends(get_tenant_record)):
     b = await _load(tdb, order_id)
     o = b.get("online") or {}
     if b.get("channel") != "online" or o.get("type") != "delivery":
         raise not_found("Order not found")
-    if o["status"] != "ready" or o.get("driver"):
+    mine = (o.get("driver") or {}).get("id") == p.user_id
+    if o["status"] != "ready" or (o.get("driver") and not mine):
         raise ApiError(409, "TAKEN", "Another partner already took this order")
     me = await tdb.users.find_one({"email": p.email}) or {}
     stamp = _iso()
     # first writer wins: the filter requires the order to still be ready and unassigned at write time
     r = await tdb.bills.update_one(
-        {"_id": b["_id"], "online.status": "ready", "online.driver": None},
+        {"_id": b["_id"], "online.status": "ready", "$or": [{"online.driver": None}, {"online.driver.id": p.user_id}]},
         {"$set": {"online.driver": {"id": p.user_id, "name": me.get("name") or p.email, "phone": me.get("phone", ""), "accepted_at": stamp}}},
     )
     if r.matched_count != 1:
         raise ApiError(409, "TAKEN", "Another partner already took this order")
     b = await _load(tdb, order_id)
-    b = await svc.advance(tdb, p.config, b, "out_for_delivery", p.email, via_driver=True)
+    b = await svc.advance(tdb, p.config, b, "out_for_delivery", p.email, via_driver=True, notify=wa_svc.Notifier(request.app, t))
     return _view(b, True)
 
 
 class LocationIn(BaseModel):
-    lat: float = Field(ge=-90, le=90)
-    lng: float = Field(ge=-180, le=180)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
     battery: int | None = Field(default=None, ge=0, le=100)
-    speed: float | None = Field(default=None, ge=0, le=300)
+    speed: float | None = Field(default=None, ge=0, le=300, description="km/h")
     online: bool = True
 
 
 @router.post("/location")
 async def location(body: LocationIn, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM))):
     stamp = _iso()
+    if body.online and (body.lat is None or body.lng is None):
+        raise bad_request("LOCATION_REQUIRED", "Location is needed while you are online")
+    if not body.online:
+        # going offline needs no position: keep the last known one, just flip the flag
+        await tdb.driver_locations.update_one({"driver_id": p.user_id}, {"$set": {"online": False, "driver_id": p.user_id, "updated_at": stamp}}, upsert=True)
+        return {"ok": True}
     await tdb.driver_locations.update_one({"driver_id": p.user_id}, {"$set": {**body.model_dump(), "driver_id": p.user_id, "updated_at": stamp}}, upsert=True)
     if body.online:
         await tdb.bills.update_many({"channel": "online", "online.driver.id": p.user_id, "online.status": "out_for_delivery"},
@@ -98,8 +107,8 @@ class DeliveredIn(BaseModel):
 
 
 @router.post("/orders/{order_id}/delivered")
-async def delivered(order_id: str, body: DeliveredIn, tdb: TenantDB = Depends(get_tdb),
-                    p: Principal = Depends(require_permission(PERM))):
+async def delivered(order_id: str, body: DeliveredIn, request: Request, tdb: TenantDB = Depends(get_tdb),
+                    p: Principal = Depends(require_permission(PERM)), t: dict = Depends(get_tenant_record)):
     b = await _load(tdb, order_id)
     o = b.get("online") or {}
     if b.get("channel") != "online" or (o.get("driver") or {}).get("id") != p.user_id:
@@ -116,7 +125,7 @@ async def delivered(order_id: str, body: DeliveredIn, tdb: TenantDB = Depends(ge
     collect = {"mode": body.collected_mode, "ref": body.ref} if body.collected_mode else None
     o["delivered_at"] = _iso()
     b["online"] = o
-    b = await svc.advance(tdb, p.config, b, "delivered", p.email, collect=collect, via_driver=True)
+    b = await svc.advance(tdb, p.config, b, "delivered", p.email, collect=collect, via_driver=True, notify=wa_svc.Notifier(request.app, t))
     await audit(tdb, p.email, "delivery.done", str(b["bill_no"]))
     return _view(b, True)
 

@@ -37,6 +37,10 @@ def check_settings(s: Settings) -> list[str]:
             problems.append("ALLOWED_ORIGINS must use https in production")
         if "localhost" in s.mongo_url or "127.0.0.1" in s.mongo_url:
             problems.append("MONGO_URL points at localhost in production")
+        if not s.secrets_key:
+            problems.append("SECRETS_KEY is required in production (encrypts payment keys and the WhatsApp token)")
+        if not s.public_base_url.startswith("https://"):
+            problems.append("PUBLIC_BASE_URL must be an https address in production (used in order tracking links)")
         if s.access_ttl_minutes > 60:
             problems.append("ACCESS_TTL_MINUTES must be <= 60 in production")
     return problems
