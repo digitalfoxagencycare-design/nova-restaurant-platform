@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from starlette.middleware.cors import CORSMiddleware
 
-from .api import routes_platform, routes_pos, routes_public, routes_tenant
+from .api import routes_delivery, routes_online, routes_ops, routes_platform, routes_pos, routes_public, routes_tenant
 from .core.config import Settings
 from .core.startup_checks import assert_safe_startup
 from .tenancy.db import ensure_indexes
@@ -35,6 +35,9 @@ def create_app(settings: Settings | None = None, database=None) -> FastAPI:
     app.include_router(routes_public.router)
     app.include_router(routes_tenant.router)
     app.include_router(routes_pos.router)
+    app.include_router(routes_online.router)
+    app.include_router(routes_ops.router)
+    app.include_router(routes_delivery.router)
     app.include_router(routes_platform.router)
 
     web = Path(__file__).resolve().parents[2] / "web"

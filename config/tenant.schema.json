@@ -2,7 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Nova tenant configuration",
   "type": "object",
-  "required": ["slug", "brand", "locale", "tax", "operations"],
+  "required": [
+    "slug",
+    "brand",
+    "locale",
+    "tax",
+    "operations"
+  ],
   "properties": {
     "pos": {
       "type": "object",
@@ -238,82 +244,311 @@
         }
       }
     },
-    "slug": { "type": "string", "pattern": "^[a-z0-9-]{3,40}$" },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{3,40}$"
+    },
     "brand": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
-        "name": { "type": "string" },
-        "legal_name": { "type": "string" },
-        "tagline": { "type": "string" },
-        "logo_url": { "type": "string" },
-        "colors": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } },
-        "fonts": { "type": "object", "properties": { "heading": { "type": "string" }, "body": { "type": "string" } } },
-        "support": { "type": "object", "properties": { "phone": { "type": "string" }, "email": { "type": "string" } } }
+        "name": {
+          "type": "string"
+        },
+        "legal_name": {
+          "type": "string"
+        },
+        "tagline": {
+          "type": "string"
+        },
+        "logo_url": {
+          "type": "string"
+        },
+        "colors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          }
+        },
+        "fonts": {
+          "type": "object",
+          "properties": {
+            "heading": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          }
+        },
+        "support": {
+          "type": "object",
+          "properties": {
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            }
+          }
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "hours": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "hero_image_url": {
+          "type": "string"
+        },
+        "map_url": {
+          "type": "string"
+        },
+        "social": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       }
     },
     "locale": {
       "type": "object",
-      "required": ["currency", "timezone", "country_code"],
+      "required": [
+        "currency",
+        "timezone",
+        "country_code"
+      ],
       "properties": {
-        "currency": { "type": "string", "default": "INR" },
-        "timezone": { "type": "string", "default": "Asia/Kolkata" },
-        "country_code": { "type": "string", "default": "91" },
-        "phone_regex": { "type": "string", "default": "^[6-9]\\d{9}$" },
-        "languages": { "type": "array", "items": { "type": "string" }, "default": ["en"] }
+        "currency": {
+          "type": "string",
+          "default": "INR"
+        },
+        "timezone": {
+          "type": "string",
+          "default": "Asia/Kolkata"
+        },
+        "country_code": {
+          "type": "string",
+          "default": "91"
+        },
+        "phone_regex": {
+          "type": "string",
+          "default": "^[6-9]\\d{9}$"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "en"
+          ]
+        }
       }
     },
     "tax": {
       "type": "object",
-      "required": ["mode", "default_rate"],
+      "required": [
+        "mode",
+        "default_rate"
+      ],
       "properties": {
-        "mode": { "enum": ["inclusive", "exclusive"] },
-        "default_rate": { "type": "number", "minimum": 0, "maximum": 0.4 },
-        "gstin": { "type": "string" }
+        "mode": {
+          "enum": [
+            "inclusive",
+            "exclusive"
+          ]
+        },
+        "default_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.4
+        },
+        "gstin": {
+          "type": "string"
+        }
       }
     },
     "operations": {
       "type": "object",
-      "required": ["business_day_start"],
+      "required": [
+        "business_day_start"
+      ],
       "properties": {
-        "business_day_start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
-        "order_number_format": { "type": "string", "default": "{YYMMDD}-{seq:04}" },
-        "stations": { "type": "array", "items": { "type": "string" }, "default": ["kitchen"] },
+        "business_day_start": {
+          "type": "string",
+          "pattern": "^\\d{2}:\\d{2}$"
+        },
+        "order_number_format": {
+          "type": "string",
+          "default": "{YYMMDD}-{seq:04}"
+        },
+        "stations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "kitchen"
+          ]
+        },
         "flows": {
           "type": "object",
           "description": "Allowed status sequence per order type",
-          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "ordering": {
       "type": "object",
       "properties": {
-        "channels": { "type": "array", "items": { "enum": ["dine-in", "takeaway", "delivery"] } },
-        "dine_in": { "type": "object", "properties": { "require_prepaid_for_self_order": { "type": "boolean" } } },
-        "min_order": { "type": "number" }
+        "channels": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "dine-in",
+              "takeaway",
+              "delivery"
+            ]
+          }
+        },
+        "dine_in": {
+          "type": "object",
+          "properties": {
+            "require_prepaid_for_self_order": {
+              "type": "boolean"
+            }
+          }
+        },
+        "min_order": {
+          "type": "number"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "notice": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "auto_accept": {
+          "type": "boolean"
+        },
+        "prep_minutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 120
+        }
       }
     },
     "delivery": {
       "type": "object",
       "properties": {
-        "max_km": { "type": "number" },
-        "free_above": { "type": "number" },
+        "max_km": {
+          "type": "number"
+        },
+        "free_above": {
+          "type": "number"
+        },
         "fee_slabs": {
           "type": "array",
-          "items": { "type": "object", "required": ["up_to_km", "fee"], "properties": { "up_to_km": { "type": "number" }, "fee": { "type": "number" } } }
+          "items": {
+            "type": "object",
+            "required": [
+              "up_to_km",
+              "fee"
+            ],
+            "properties": {
+              "up_to_km": {
+                "type": "number"
+              },
+              "fee": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "origin": {
+          "type": "object",
+          "required": [
+            "lat",
+            "lng"
+          ],
+          "properties": {
+            "lat": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "lng": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          "description": "Shop location; used to check delivery range"
+        },
+        "driver_pay": {
+          "type": "object",
+          "properties": {
+            "base": {
+              "type": "number",
+              "minimum": 0
+            },
+            "per_km": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "description": "Rupees per delivery and per km, for the partner's earnings screen"
         }
       }
     },
     "payments": {
       "type": "object",
       "properties": {
-        "methods": { "type": "array", "items": { "enum": ["cash", "card", "upi", "cod", "razorpay"] } },
+        "methods": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "cash",
+              "card",
+              "upi",
+              "cod",
+              "razorpay"
+            ]
+          }
+        },
         "cod": {
           "type": "object",
           "properties": {
-            "enabled": { "type": "boolean" },
-            "disabled_windows": { "type": "array", "items": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } } } }
+            "enabled": {
+              "type": "boolean"
+            },
+            "disabled_windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -321,22 +556,73 @@
     "loyalty": {
       "type": "object",
       "properties": {
-        "enabled": { "type": "boolean" },
-        "earn_per_rupees": { "type": "number" },
-        "coin_value": { "type": "number" },
-        "welcome_bonus": { "type": "integer" },
-        "first_orders": { "type": "object", "properties": { "count": { "type": "integer" }, "discount": { "type": "number" }, "min_subtotal": { "type": "number" } } },
-        "min_redeem": { "type": "integer" },
-        "max_order_share": { "type": "number", "minimum": 0, "maximum": 1 }
+        "enabled": {
+          "type": "boolean"
+        },
+        "earn_per_rupees": {
+          "type": "number"
+        },
+        "coin_value": {
+          "type": "number"
+        },
+        "welcome_bonus": {
+          "type": "integer"
+        },
+        "first_orders": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "discount": {
+              "type": "number"
+            },
+            "min_subtotal": {
+              "type": "number"
+            }
+          }
+        },
+        "min_redeem": {
+          "type": "integer"
+        },
+        "max_order_share": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "integrations": {
       "type": "object",
       "description": "References only. Secrets live in the secret manager, never here.",
       "properties": {
-        "whatsapp": { "type": "object", "properties": { "project": { "type": "string" }, "otp_template": { "type": "string" } } },
-        "razorpay": { "type": "object", "properties": { "secret_ref": { "type": "string" } } },
-        "fcm": { "type": "object", "properties": { "topic": { "type": "string" } } }
+        "whatsapp": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "otp_template": {
+              "type": "string"
+            }
+          }
+        },
+        "razorpay": {
+          "type": "object",
+          "properties": {
+            "secret_ref": {
+              "type": "string"
+            }
+          }
+        },
+        "fcm": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   }
