@@ -19,6 +19,7 @@ from ..services.audit import audit
 from ..services.billing import _load, business_date
 from ..tenancy.db import PlatformDB, TenantDB
 from .deps import Principal, client_ip, get_platform_db, get_settings, get_tdb, require_permission
+from .routes_pos import DEFAULT_TABLES
 
 router = APIRouter(prefix="/v2")
 
@@ -259,7 +260,7 @@ async def delete_coupon(coupon_id: str, p: Principal = Depends(require_permissio
 # ------------------------------------------------------------------ tables
 @router.get("/tables")
 async def tables(tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission("bills.view"))):
-    names = (p.config.get("pos") or {}).get("tables") or []
+    names = (p.config.get("pos") or {}).get("tables") or DEFAULT_TABLES
     busy: dict[str, dict] = {}
     async for b in tdb.bills.find({"type": "Dine-in", "status": "open"}):
         if b.get("table"):

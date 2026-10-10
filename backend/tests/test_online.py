@@ -267,3 +267,57 @@ async def test_bulk_menu_actions_and_account_deletion(client, shop):
     cust = await sign_in(client, shop["slug"])
     assert (await client.delete("/v2/me", headers=H(cust))).status_code == 204
     assert (await client.get("/v2/me", headers=H(cust))).status_code == 401
+
+
+async def test_rider_assigned_by_staff_can_still_accept_and_others_cannot(client, shop):
+    cust = await sign_in(client, shop["slug"])
+    o = (await client.post("/v2/me/orders", headers=H(cust), json={**cart(shop, ("Dum Biryani", 1)), "type": "delivery", "address": ADDR_NEAR})).json()
+    st, oid = H(shop["cashier"]), o["id"]
+    for s_ in ("preparing", "ready"):
+        await client.post(f"/v2/orders/{oid}/status", headers=st, json={"status": s_})
+    drivers = (await client.get("/v2/delivery/drivers", headers=st)).json()
+    d1 = next(d for d in drivers if d["name"] and d["id"])
+    me1 = (await client.get("/v2/pos/rules", headers=H(shop["d1"]))).json()
+    assert (await client.post(f"/v2/orders/{oid}/assign", headers=st, json={"driver_id": d1["id"]})).status_code == 200
+    mine = [H(shop["d1"]), H(shop["d2"])]
+    results = [(await client.post(f"/v2/delivery/orders/{oid}/accept", headers=h)).status_code for h in mine]
+    assert sorted(results) == [200, 409] and me1["role"] == "delivery"
+
+
+async def test_coupon_expiry_and_tables_fallback_and_full_permission_list(client, shop):
+    o = H(shop["owner"])
+    await client.post("/v2/coupons", headers=o, json={"code": "OLD", "kind": "pct", "value": 10, "valid_to": "2020-01-01"})
+    await client.post("/v2/coupons", headers=o, json={"code": "NEW", "kind": "pct", "value": 10, "valid_to": "2099-12-31"})
+    base = {**cart(shop, ("Dum Biryani", 1)), "type": "takeaway"}
+    assert (await client.post("/v2/public/biryani-house/quote", json={**base, "coupon": "OLD"})).json()["detail"]["code"] == "COUPON_INVALID"
+    assert (await client.post("/v2/public/biryani-house/quote", json={**base, "coupon": "NEW"})).status_code == 200
+    assert len((await client.get("/v2/tables", headers=H(shop["cashier"]))).json()) >= 10         # default tables when none are configured
+    perms = (await client.get("/v2/pos/rules", headers=H(shop["cashier"]))).json()["all_permissions"]
+    assert "orders.update" in perms and "users.manage" not in perms
+
+
+async def test_deleted_account_can_start_again_and_order_lines_carry_item_ids(client, shop):
+    tok = await sign_in(client, shop["slug"], phone="9876543299", name="Old Name")
+    assert (await client.put("/v2/me", headers=H(tok), json={"addresses": [{"text": "Somewhere 123", "lat": 17.46, "lng": 78.39}]})).status_code == 200
+    o = (await client.post("/v2/me/orders", headers=H(tok), json={**cart(shop, ("Dum Biryani", 1)), "type": "takeaway"})).json()
+    assert o["lines"][0]["item_id"] == shop["items"]["Dum Biryani"]
+    assert (await client.delete("/v2/me", headers=H(tok))).status_code == 204
+    assert (await client.get("/v2/me", headers=H(tok))).status_code == 401
+    again = await sign_in(client, shop["slug"], phone="9876543299", name="New Name")
+    me = (await client.get("/v2/me", headers=H(again))).json()
+    assert me["name"] == "New Name" and me["addresses"] == []
+
+
+async def test_small_api_gaps_found_by_the_apps(client, shop):
+    o = H(shop["owner"])
+    r = await client.patch(f"/v2/pos/menu/{shop['items']['Dum Biryani']}", headers=o, json={"veg": True})
+    assert r.status_code == 200 and r.json()["veg"] is True
+    me = (await client.get("/v2/staff/me", headers=H(shop["d1"]))).json()
+    assert me["role"] == "delivery" and "orders.update.delivery" in me["permissions"] and me["email"] == "d1@bh.example.com"
+    assert (await client.get("/v2/staff/me", headers=H(await sign_in(client, shop["slug"])))).status_code == 401
+    d = H(shop["d1"])
+    assert (await client.post("/v2/delivery/location", headers=d, json={"lat": 17.4, "lng": 78.4})).status_code == 200
+    assert (await client.post("/v2/delivery/location", headers=d, json={"online": False})).status_code == 200
+    assert (await client.post("/v2/delivery/location", headers=d, json={"online": True})).status_code == 400
+    users = (await client.get("/v2/users", headers=o)).json()
+    assert all("phone" in u for u in users)

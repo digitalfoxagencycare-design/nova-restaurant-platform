@@ -105,6 +105,21 @@ async def public_menu(tdb: TenantDB) -> dict:
     return {"categories": cats, "items": items}
 
 
+def _expired(valid_to: str | None) -> bool:
+    """``valid_to`` may be a date (valid through the end of that day, UTC) or a full timestamp."""
+    if not valid_to:
+        return False
+    try:
+        end = datetime.fromisoformat(valid_to)
+    except ValueError:
+        return True
+    if len(valid_to) <= 10:
+        end = end.replace(hour=23, minute=59, second=59)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=UTC)
+    return end < _now()
+
+
 # ------------------------------------------------------------------ pricing
 async def price_cart(tdb: TenantDB, cfg: dict, body: dict) -> dict:
     """Validate a cart and return everything the bill needs. Raises ApiError with stable codes."""
@@ -175,7 +190,7 @@ async def price_cart(tdb: TenantDB, cfg: dict, body: dict) -> dict:
     code = (body.get("coupon") or "").strip().upper()
     if code:
         c = await tdb.coupons.find_one({"code": code})
-        if not c or not c.get("active", True) or (c.get("valid_to") and c["valid_to"] < _iso()):
+        if not c or not c.get("active", True) or _expired(c.get("valid_to")):
             raise ApiError(409, "COUPON_INVALID", "This offer is not valid")
         if food < int(c.get("min_subtotal", 0)):
             raise ApiError(409, "COUPON_MIN", f"Add ₹{(c['min_subtotal'] - food) / 100:g} more to use {code}", min_subtotal=int(c["min_subtotal"]))
@@ -198,7 +213,7 @@ def quote_view(priced: dict) -> dict:
 
 
 def _line_view(ln: dict) -> dict:
-    return {"name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
+    return {"item_id": ln["item_id"], "name": ln["name"], "price": ln["price"], "qty": ln["qty"], "note": ln.get("note", ""), "fee": bool(ln.get("fee"))}
 
 
 # ------------------------------------------------------------------ placing
