@@ -12,7 +12,16 @@ from ..services import auth as auth_svc
 from ..services import tenants as tenant_svc
 from ..services.audit import audit
 from ..tenancy.db import PlatformDB, TenantDB
-from .deps import Principal, client_ip, get_platform_db, get_settings, get_tdb, get_tenant_record, require_permission
+from .deps import (
+    Principal,
+    client_ip,
+    get_platform_db,
+    get_settings,
+    get_tdb,
+    get_tenant_record,
+    require_permission,
+    require_tenant_principal,
+)
 
 router = APIRouter(prefix="/v2")
 
@@ -21,6 +30,14 @@ class UserInviteIn(BaseModel):
     email: EmailStr
     name: str = ""
     role: str
+
+
+@router.get("/staff/me")
+async def staff_me(p: Principal = Depends(require_tenant_principal), tdb: TenantDB = Depends(get_tdb)):
+    """Who am I: name, role and the full effective permission list (apps use it to hide what the user cannot do)."""
+    u = await tdb.users.find_one({"email": p.email}) or {}
+    return {"id": p.user_id, "email": p.email, "name": u.get("name", ""), "phone": u.get("phone", ""), "role": p.role,
+            "permissions": ["*"] if "*" in p.permissions else sorted(p.permissions), "brand": (p.config or {}).get("brand", {}).get("name", "")}
 
 
 @router.get("/tenants/me")
@@ -43,7 +60,7 @@ async def put_config(
 async def list_users(tdb: TenantDB = Depends(get_tdb), _: Principal = Depends(require_permission("users.view"))):
     out = []
     async for u in tdb.users.find({}, {"password_hash": 0}):
-        out.append({"id": str(u["_id"]), "email": u["email"], "name": u.get("name", ""), "role": u["role"], "status": u["status"]})
+        out.append({"id": str(u["_id"]), "email": u["email"], "name": u.get("name", ""), "role": u["role"], "status": u["status"], "phone": u.get("phone", "")})
     return out
 
 

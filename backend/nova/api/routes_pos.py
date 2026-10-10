@@ -59,6 +59,7 @@ class MenuPatch(BaseModel):
     price: int | None = Field(default=None, ge=0, le=10_000_000)
     category: str | None = Field(default=None, min_length=1, max_length=40)
     station: str | None = None
+    veg: bool | None = None
     available: bool | None = None
     tax_rate: float | None = Field(default=None, ge=0, le=0.28)
     description: str | None = Field(default=None, max_length=240)

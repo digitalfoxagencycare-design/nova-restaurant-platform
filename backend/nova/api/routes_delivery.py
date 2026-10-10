@@ -75,16 +75,22 @@ async def accept(order_id: str, tdb: TenantDB = Depends(get_tdb), p: Principal =
 
 
 class LocationIn(BaseModel):
-    lat: float = Field(ge=-90, le=90)
-    lng: float = Field(ge=-180, le=180)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lng: float | None = Field(default=None, ge=-180, le=180)
     battery: int | None = Field(default=None, ge=0, le=100)
-    speed: float | None = Field(default=None, ge=0, le=300)
+    speed: float | None = Field(default=None, ge=0, le=300, description="km/h")
     online: bool = True
 
 
 @router.post("/location")
 async def location(body: LocationIn, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM))):
     stamp = _iso()
+    if body.online and (body.lat is None or body.lng is None):
+        raise bad_request("LOCATION_REQUIRED", "Location is needed while you are online")
+    if not body.online:
+        # going offline needs no position: keep the last known one, just flip the flag
+        await tdb.driver_locations.update_one({"driver_id": p.user_id}, {"$set": {"online": False, "driver_id": p.user_id, "updated_at": stamp}}, upsert=True)
+        return {"ok": True}
     await tdb.driver_locations.update_one({"driver_id": p.user_id}, {"$set": {**body.model_dump(), "driver_id": p.user_id, "updated_at": stamp}}, upsert=True)
     if body.online:
         await tdb.bills.update_many({"channel": "online", "online.driver.id": p.user_id, "online.status": "out_for_delivery"},

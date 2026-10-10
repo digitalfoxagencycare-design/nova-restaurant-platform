@@ -306,3 +306,18 @@ async def test_deleted_account_can_start_again_and_order_lines_carry_item_ids(cl
     again = await sign_in(client, shop["slug"], phone="9876543299", name="New Name")
     me = (await client.get("/v2/me", headers=H(again))).json()
     assert me["name"] == "New Name" and me["addresses"] == []
+
+
+async def test_small_api_gaps_found_by_the_apps(client, shop):
+    o = H(shop["owner"])
+    r = await client.patch(f"/v2/pos/menu/{shop['items']['Dum Biryani']}", headers=o, json={"veg": True})
+    assert r.status_code == 200 and r.json()["veg"] is True
+    me = (await client.get("/v2/staff/me", headers=H(shop["d1"]))).json()
+    assert me["role"] == "delivery" and "orders.update.delivery" in me["permissions"] and me["email"] == "d1@bh.example.com"
+    assert (await client.get("/v2/staff/me", headers=H(await sign_in(client, shop["slug"])))).status_code == 401
+    d = H(shop["d1"])
+    assert (await client.post("/v2/delivery/location", headers=d, json={"lat": 17.4, "lng": 78.4})).status_code == 200
+    assert (await client.post("/v2/delivery/location", headers=d, json={"online": False})).status_code == 200
+    assert (await client.post("/v2/delivery/location", headers=d, json={"online": True})).status_code == 400
+    users = (await client.get("/v2/users", headers=o)).json()
+    assert all("phone" in u for u in users)
