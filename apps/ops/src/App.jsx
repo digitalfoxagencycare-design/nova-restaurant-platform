@@ -10,10 +10,12 @@ import Wizard from "./pages/Wizard";
 import Detail from "./pages/Detail";
 import WhatsApp from "./pages/WhatsApp";
 import Enquiries from "./pages/Enquiries";
+import Analytics from "./pages/Analytics";
 import { AuditPage, HealthPage } from "./pages/System";
 
 const NAV = [
   { id: "", label: "Overview", icon: "home" },
+  { id: "analytics", label: "Analytics", icon: "chart" },
   { id: "restaurants", label: "Restaurants", icon: "store" },
   { id: "enquiries", label: "Enquiries", icon: "inbox" },
   { id: "whatsapp", label: "WhatsApp", icon: "chat" },
@@ -65,6 +67,7 @@ function Shell({ session }) {
   else if (section === "restaurants" && route[1] === "new") page = <Wizard />;
   else if (section === "restaurants" && route[1]) page = <Detail id={route[1]} tab={route[2] || "overview"} />;
   else if (section === "restaurants") page = <Restaurants />;
+  else if (section === "analytics") page = <Analytics />;
   else if (section === "enquiries") page = <Enquiries />;
   else if (section === "whatsapp") page = <WhatsApp />;
   else if (section === "health") page = <HealthPage />;

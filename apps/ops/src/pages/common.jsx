@@ -1,6 +1,6 @@
 import { ago, dateOf, money, timeOf } from "@nova/shared";
 import { href } from "../lib/router";
-import { Avatar, Chip, cx } from "../ui";
+import { Avatar, Chip, Icon, cx } from "../ui";
 
 export const STATUS = { active: { label: "Active", tone: "good" }, suspended: { label: "Paused", tone: "warn" } };
 export const statusChip = (s) => {
@@ -13,21 +13,28 @@ export const when = (iso) => (iso ? `${dateOf(iso)}, ${timeOf(iso)}` : "");
 
 export function RestaurantCard({ t }) {
   return (
-    <a href={href("/restaurants/" + t.id)} className="group block rounded-2xl border border-line bg-white p-4 shadow-card transition hover:border-brand/40 hover:shadow-float" data-testid="restaurant-card">
-      <div className="flex items-start gap-3">
-        <Avatar name={t.name} logoUrl={t.status === "active" ? t.logo_url : ""} color={t.colors?.primary} size={48} />
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 break-words font-display text-lg font-bold leading-tight">{t.name}</p>
-          <p className="truncate text-[13px] text-ink/65">{t.slug}</p>
+    <div className="group rounded-2xl border border-line bg-white shadow-card transition hover:border-brand/40 hover:shadow-float" data-testid="restaurant-card">
+      <a href={href("/restaurants/" + t.id)} className="block p-4 pb-3" data-testid="restaurant-card-link">
+        <div className="flex items-start gap-3">
+          <Avatar name={t.name} logoUrl={t.status === "active" ? t.logo_url : ""} color={t.colors?.primary} size={48} />
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 break-words font-display text-lg font-bold leading-tight">{t.name}</p>
+            <p className="truncate text-[13px] text-ink/65">{t.slug}</p>
+          </div>
+          {statusChip(t.status)}
         </div>
-        {statusChip(t.status)}
+        <dl className="mt-4 grid grid-cols-3 gap-2 text-[13px]">
+          <div><dt className="text-ink/65">Orders (30 days)</dt><dd className="text-base font-bold">{t.orders_30d}</dd></div>
+          <div><dt className="text-ink/65">Sales</dt><dd className="text-base font-bold">{money(t.gmv_30d)}</dd></div>
+          <div><dt className="text-ink/65">Last order</dt><dd className="text-base font-bold">{t.last_order_at ? ago(t.last_order_at) : "None yet"}</dd></div>
+        </dl>
+      </a>
+      <div className="border-t border-line px-4">
+        <a href={href(`/restaurants/${t.id}/analytics`)} className="prose-link inline-flex min-h-[44px] items-center gap-1.5 text-[14px]" aria-label={`Sales analytics for ${t.name}`}>
+          <Icon name="chart" className="h-4 w-4" />Sales analytics
+        </a>
       </div>
-      <dl className="mt-4 grid grid-cols-3 gap-2 text-[13px]">
-        <div><dt className="text-ink/65">Orders (30 days)</dt><dd className="text-base font-bold">{t.orders_30d}</dd></div>
-        <div><dt className="text-ink/65">Sales</dt><dd className="text-base font-bold">{money(t.gmv_30d)}</dd></div>
-        <div><dt className="text-ink/65">Last order</dt><dd className="text-base font-bold">{t.last_order_at ? ago(t.last_order_at) : "None yet"}</dd></div>
-      </dl>
-    </a>
+    </div>
   );
 }
 
