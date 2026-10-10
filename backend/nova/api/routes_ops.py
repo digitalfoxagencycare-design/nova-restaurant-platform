@@ -14,11 +14,13 @@ from ..core.config import Settings
 from ..core.errors import ApiError, bad_request, not_found
 from ..core.permissions import ROLE_PERMISSIONS
 from ..services import online as svc
+from ..services import payments as pay_svc
 from ..services import tenants as tenant_svc
+from ..services import whatsapp as wa_svc
 from ..services.audit import audit
 from ..services.billing import _load, business_date
 from ..tenancy.db import PlatformDB, TenantDB
-from .deps import Principal, client_ip, get_platform_db, get_settings, get_tdb, require_permission
+from .deps import Principal, client_ip, get_platform_db, get_settings, get_tdb, get_tenant_record, require_permission
 from .routes_pos import DEFAULT_TABLES
 
 router = APIRouter(prefix="/v2")
@@ -51,6 +53,8 @@ async def list_orders(scope: str = Query("open", pattern="^(open|done|cancelled|
     flt = {} if channel == "all" else {"channel": "online"} if channel == "online" else {"channel": {"$ne": "online"}}
     out = []
     async for b in tdb.bills.find(flt).sort("created_at", -1).limit(600):
+        if b.get("channel") == "online" and b["online"]["status"] == "pending_payment":
+            continue            # not an order yet: the customer has not paid
         cancelled = b["status"] == "void" or (b.get("channel") == "online" and b["online"]["status"] == "cancelled")
         ok = {"all": True, "cancelled": cancelled, "open": not cancelled and _is_open(b), "done": not cancelled and not _is_open(b)}[scope]
         if ok:
@@ -73,10 +77,12 @@ class StatusIn(BaseModel):
 
 
 @router.post("/orders/{order_id}/status")
-async def set_status(order_id: str, body: StatusIn, p: Principal = Depends(require_permission("orders.update")),
-                     tdb: TenantDB = Depends(get_tdb)):
+async def set_status(order_id: str, request: Request, body: StatusIn, p: Principal = Depends(require_permission("orders.update")),
+                     tdb: TenantDB = Depends(get_tdb), t: dict = Depends(get_tenant_record)):
     b = await _load(tdb, order_id)
-    b = await svc.advance(tdb, p.config, b, body.status, p.email, collect=body.collect, reason=body.reason)
+    rzp = await pay_svc.razorpay_for(request.app, p.tenant_id) if b["payments"] else None
+    b = await svc.advance(tdb, p.config, b, body.status, p.email, collect=body.collect, reason=body.reason,
+                          notify=wa_svc.Notifier(request.app, t), refunder=pay_svc.refunder(rzp, t) if rzp else None)
     return svc.staff_view(b)
 
 
@@ -159,7 +165,7 @@ async def overview(date: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"
             if not ln.get("fee"):
                 items[ln["name"]] = items.get(ln["name"], 0) + ln["qty"]
     new_online = open_online = pending = 0
-    async for b in tdb.bills.find({"channel": "online", "online.status": {"$nin": list(svc.FINAL)}}):
+    async for b in tdb.bills.find({"channel": "online", "online.status": {"$nin": [*svc.FINAL, "pending_payment"]}}):
         open_online += 1
         new_online += b["online"]["status"] == "placed"
         pending += max(0, calc.balance(b))

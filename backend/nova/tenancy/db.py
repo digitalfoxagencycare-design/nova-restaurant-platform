@@ -168,7 +168,7 @@ class TenantDB:
 class PlatformDB:
     """Un-scoped access for Nova-level data (tenants, platform users). Only platform principals get one."""
 
-    PLATFORM_COLLECTIONS = frozenset({"tenants", "platform_users", "platform_audit"})
+    PLATFORM_COLLECTIONS = frozenset({"tenants", "platform_users", "platform_audit", "platform_secrets", "platform_settings", "leads", "assets"})
 
     def __init__(self, database):
         self._db = database
@@ -209,3 +209,7 @@ async def ensure_indexes(database) -> None:
             await database[coll].create_index(keys, unique=unique)
     await database["tenants"].create_index([("slug", 1)], unique=True)
     await database["platform_users"].create_index([("email", 1)], unique=True)
+    await database["platform_secrets"].create_index([("scope", 1), ("name", 1)], unique=True)
+    await database["platform_settings"].create_index([("key", 1)], unique=True)
+    await database["assets"].create_index([("tenant_id", 1), ("kind", 1)], unique=True)
+    await database["leads"].create_index([("created_at", -1)])

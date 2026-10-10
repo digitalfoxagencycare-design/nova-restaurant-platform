@@ -135,6 +135,18 @@ async def create_invite(tdb: TenantDB, s: Settings, email: str, role: str, name:
     return token
 
 
+async def reissue_invite(tdb: TenantDB, s: Settings, email: str) -> str:
+    """A new one-time link for a user who has not accepted yet (the old link stops working)."""
+    email = email.strip().lower()
+    user = await tdb.users.find_one({"email": email})
+    if not user or user.get("status") != "invited":
+        raise ApiError(409, "NOT_INVITED", "This person has already set a password")
+    await tdb.invites.update_many({"email": email, "used": False}, {"$set": {"used": True}})
+    token = random_token()
+    await tdb.invites.insert_one({"token_hash": sha256(token), "email": email, "used": False, "expires_at": _iso(_now() + timedelta(hours=s.invite_ttl_hours))})
+    return token
+
+
 async def accept_invite(tdb: TenantDB, token: str, password: str) -> None:
     inv = await tdb.invites.find_one({"token_hash": sha256(token)})
     if not inv or inv["used"] or datetime.fromisoformat(inv["expires_at"]) < _now():

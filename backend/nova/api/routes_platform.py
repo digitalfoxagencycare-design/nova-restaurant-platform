@@ -43,11 +43,6 @@ async def create_tenant(
     return {"id": tenant["_id"], "slug": tenant["slug"], "owner_invite_token": token}
 
 
-@router.get("/tenants")
-async def list_tenants(pdb: PlatformDB = Depends(get_platform_db), p: Principal = Depends(require_permission("platform.tenants.view"))):
-    return [{"id": t["_id"], "slug": t["slug"], "status": t["status"], "plan": t["plan"]} async for t in pdb.tenants.find({})]
-
-
 @router.post("/tenants/{tenant_id}/suspend", status_code=204)
 async def suspend(tenant_id: str, pdb: PlatformDB = Depends(get_platform_db), p: Principal = Depends(require_permission("platform.tenants.suspend"))):
     res = await pdb.tenants.update_one({"_id": tenant_id}, {"$set": {"status": "suspended"}})

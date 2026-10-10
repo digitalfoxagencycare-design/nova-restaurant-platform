@@ -6,15 +6,16 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from ..core.errors import ApiError, bad_request, not_found
 from ..services import online as svc
+from ..services import whatsapp as wa_svc
 from ..services.audit import audit
 from ..services.billing import PAY_MODES, _load
 from ..tenancy.db import TenantDB
-from .deps import Principal, get_tdb, require_permission
+from .deps import Principal, get_tdb, get_tenant_record, require_permission
 
 router = APIRouter(prefix="/v2/delivery")
 PERM = "orders.update.delivery"
@@ -52,7 +53,8 @@ async def orders(tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(requir
 
 
 @router.post("/orders/{order_id}/accept")
-async def accept(order_id: str, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM))):
+async def accept(order_id: str, request: Request, tdb: TenantDB = Depends(get_tdb), p: Principal = Depends(require_permission(PERM)),
+                 t: dict = Depends(get_tenant_record)):
     b = await _load(tdb, order_id)
     o = b.get("online") or {}
     if b.get("channel") != "online" or o.get("type") != "delivery":
@@ -70,7 +72,7 @@ async def accept(order_id: str, tdb: TenantDB = Depends(get_tdb), p: Principal =
     if r.matched_count != 1:
         raise ApiError(409, "TAKEN", "Another partner already took this order")
     b = await _load(tdb, order_id)
-    b = await svc.advance(tdb, p.config, b, "out_for_delivery", p.email, via_driver=True)
+    b = await svc.advance(tdb, p.config, b, "out_for_delivery", p.email, via_driver=True, notify=wa_svc.Notifier(request.app, t))
     return _view(b, True)
 
 
@@ -105,8 +107,8 @@ class DeliveredIn(BaseModel):
 
 
 @router.post("/orders/{order_id}/delivered")
-async def delivered(order_id: str, body: DeliveredIn, tdb: TenantDB = Depends(get_tdb),
-                    p: Principal = Depends(require_permission(PERM))):
+async def delivered(order_id: str, body: DeliveredIn, request: Request, tdb: TenantDB = Depends(get_tdb),
+                    p: Principal = Depends(require_permission(PERM)), t: dict = Depends(get_tenant_record)):
     b = await _load(tdb, order_id)
     o = b.get("online") or {}
     if b.get("channel") != "online" or (o.get("driver") or {}).get("id") != p.user_id:
@@ -123,7 +125,7 @@ async def delivered(order_id: str, body: DeliveredIn, tdb: TenantDB = Depends(ge
     collect = {"mode": body.collected_mode, "ref": body.ref} if body.collected_mode else None
     o["delivered_at"] = _iso()
     b["online"] = o
-    b = await svc.advance(tdb, p.config, b, "delivered", p.email, collect=collect, via_driver=True)
+    b = await svc.advance(tdb, p.config, b, "delivered", p.email, collect=collect, via_driver=True, notify=wa_svc.Notifier(request.app, t))
     await audit(tdb, p.email, "delivery.done", str(b["bill_no"]))
     return _view(b, True)
 
