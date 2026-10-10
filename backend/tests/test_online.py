@@ -267,3 +267,30 @@ async def test_bulk_menu_actions_and_account_deletion(client, shop):
     cust = await sign_in(client, shop["slug"])
     assert (await client.delete("/v2/me", headers=H(cust))).status_code == 204
     assert (await client.get("/v2/me", headers=H(cust))).status_code == 401
+
+
+async def test_rider_assigned_by_staff_can_still_accept_and_others_cannot(client, shop):
+    cust = await sign_in(client, shop["slug"])
+    o = (await client.post("/v2/me/orders", headers=H(cust), json={**cart(shop, ("Dum Biryani", 1)), "type": "delivery", "address": ADDR_NEAR})).json()
+    st, oid = H(shop["cashier"]), o["id"]
+    for s_ in ("preparing", "ready"):
+        await client.post(f"/v2/orders/{oid}/status", headers=st, json={"status": s_})
+    drivers = (await client.get("/v2/delivery/drivers", headers=st)).json()
+    d1 = next(d for d in drivers if d["name"] and d["id"])
+    me1 = (await client.get("/v2/pos/rules", headers=H(shop["d1"]))).json()
+    assert (await client.post(f"/v2/orders/{oid}/assign", headers=st, json={"driver_id": d1["id"]})).status_code == 200
+    mine = [H(shop["d1"]), H(shop["d2"])]
+    results = [(await client.post(f"/v2/delivery/orders/{oid}/accept", headers=h)).status_code for h in mine]
+    assert sorted(results) == [200, 409] and me1["role"] == "delivery"
+
+
+async def test_coupon_expiry_and_tables_fallback_and_full_permission_list(client, shop):
+    o = H(shop["owner"])
+    await client.post("/v2/coupons", headers=o, json={"code": "OLD", "kind": "pct", "value": 10, "valid_to": "2020-01-01"})
+    await client.post("/v2/coupons", headers=o, json={"code": "NEW", "kind": "pct", "value": 10, "valid_to": "2099-12-31"})
+    base = {**cart(shop, ("Dum Biryani", 1)), "type": "takeaway"}
+    assert (await client.post("/v2/public/biryani-house/quote", json={**base, "coupon": "OLD"})).json()["detail"]["code"] == "COUPON_INVALID"
+    assert (await client.post("/v2/public/biryani-house/quote", json={**base, "coupon": "NEW"})).status_code == 200
+    assert len((await client.get("/v2/tables", headers=H(shop["cashier"]))).json()) >= 10         # default tables when none are configured
+    perms = (await client.get("/v2/pos/rules", headers=H(shop["cashier"]))).json()["all_permissions"]
+    assert "orders.update" in perms and "users.manage" not in perms

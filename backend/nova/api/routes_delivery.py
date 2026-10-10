@@ -57,13 +57,14 @@ async def accept(order_id: str, tdb: TenantDB = Depends(get_tdb), p: Principal =
     o = b.get("online") or {}
     if b.get("channel") != "online" or o.get("type") != "delivery":
         raise not_found("Order not found")
-    if o["status"] != "ready" or o.get("driver"):
+    mine = (o.get("driver") or {}).get("id") == p.user_id
+    if o["status"] != "ready" or (o.get("driver") and not mine):
         raise ApiError(409, "TAKEN", "Another partner already took this order")
     me = await tdb.users.find_one({"email": p.email}) or {}
     stamp = _iso()
     # first writer wins: the filter requires the order to still be ready and unassigned at write time
     r = await tdb.bills.update_one(
-        {"_id": b["_id"], "online.status": "ready", "online.driver": None},
+        {"_id": b["_id"], "online.status": "ready", "$or": [{"online.driver": None}, {"online.driver.id": p.user_id}]},
         {"$set": {"online.driver": {"id": p.user_id, "name": me.get("name") or p.email, "phone": me.get("phone", ""), "accepted_at": stamp}}},
     )
     if r.matched_count != 1:

@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
+import email_validator  # noqa: E402
 import uvicorn  # noqa: E402
 from mongomock_motor import AsyncMongoMockClient  # noqa: E402
 
@@ -29,6 +30,7 @@ from nova.services import auth, online  # noqa: E402
 from nova.services import tenants as tenant_svc  # noqa: E402
 from nova.tenancy.db import PlatformDB, TenantDB  # noqa: E402
 
+email_validator.TEST_ENVIRONMENT = True      # dev only: lets the reserved .test domain through the e-mail check
 SLUG = "demo-biryani"
 DEMO_PW = os.environ.get("DEMO_PW", "Demo-Pass-2026")
 USERS = [("owner@demo.test", "owner", "Asha Owner"), ("manager@demo.test", "manager", "Manoj Manager"), ("cashier@demo.test", "cashier", "Charan Cashier"),
