@@ -53,7 +53,10 @@ function rtable(cols, rows, label) {
 
 function listBars(rows, fmt) {
   const mx = Math.max(1, ...rows.map((r) => r.v));
-  return h("div", { class: "lb" }, rows.map((r) => h("div", { class: "lbr" }, h("div", { class: "row sb" }, h("span", null, r.label), h("span", { class: "mono" }, fmt(r.v), r.note ? h("span", { class: "sub" }, " · " + r.note) : null)), h("div", { class: "bar" }, h("i", { style: `width:${Math.max(r.v ? 2 : 0, (r.v / mx) * 100)}%` })))));
+  return h("div", { class: "lb" }, rows.map((r) => {
+    const kids = [h("div", { class: "row sb" }, h("span", null, r.label), h("span", { class: "mono" }, fmt(r.v), r.note ? h("span", { class: "sub" }, " · " + r.note) : null)), h("div", { class: "bar" }, h("i", { style: `width:${Math.max(r.v ? 2 : 0, (r.v / mx) * 100)}%` }))];
+    return r.go ? on(h("button", { type: "button", class: "lbr dgo", "aria-label": `${r.label}: ${fmt(r.v)}${r.note ? ", " + r.note : ""}. Open the details` }, kids), r.go) : h("div", { class: "lbr" }, kids);
+  }));
 }
 
 /* dialogs and the side drawer: Escape closes, Tab stays inside, focus goes back where it came from */
@@ -96,13 +99,20 @@ LOAD.home = async () => {
   await Promise.all(jobs);
 };
 
-function tile(label, value, sub, cls = "") { return h("div", { class: "card kpi " + cls }, h("small", null, label), h("strong", null, value), sub ? h("span", { class: "sub" }, sub) : null); }
+function tile(label, value, sub, cls = "", to = null) {
+  const kids = [h("small", null, label), h("strong", null, value), sub ? h("span", { class: "sub" }, sub) : null];
+  if (!to) return h("div", { class: "card kpi " + cls }, kids);
+  return on(h("button", { type: "button", class: "card kpi " + cls, "aria-label": `${label}: ${value}${sub ? ", " + sub : ""}. Open the details` }, kids), typeof to === "function" ? to : () => go(to));
+}
 
-function bars7(last7) {
+function bars7(last7, onDay) {
   const max = Math.max(1, ...last7.map((d) => d.sales));
-  return h("div", { class: "b7", role: "img", "aria-label": "Sales for the last 7 days: " + last7.map((d) => dayLabel(d.date) + " " + RS(d.sales)).join(", ") },
-    last7.map((d, i) => h("div", { class: "b7c" + (i === last7.length - 1 ? " today" : ""), title: dayLabel(d.date) + " " + RS(d.sales), "aria-hidden": "true" },
-      h("span", { class: "b7v" }, d.sales ? compactRs(d.sales) : "–"), h("div", { class: "b7t" }, h("i", { style: `height:${d.sales ? Math.max(3, (d.sales / max) * 100) : 0}%` })), h("span", { class: "b7l" }, dayLabel(d.date)))));
+  return h("div", { class: "b7", role: onDay ? "group" : "img", "aria-label": "Sales for the last 7 days: " + last7.map((d) => dayLabel(d.date) + " " + RS(d.sales)).join(", ") },
+    last7.map((d, i) => {
+      const kids = [h("span", { class: "b7v" }, d.sales ? compactRs(d.sales) : "–"), h("div", { class: "b7t" }, h("i", { style: `height:${d.sales ? Math.max(3, (d.sales / max) * 100) : 0}%` })), h("span", { class: "b7l" }, dayLabel(d.date))];
+      const cls = "b7c" + (i === last7.length - 1 ? " today" : "");
+      return onDay ? on(h("button", { type: "button", class: cls, title: dayLabel(d.date) + " " + RS(d.sales), "aria-label": `${dayLabel(d.date)} ${d.date}: ${RS(d.sales)}. See that day by hour` }, kids), () => onDay(d)) : h("div", { class: cls, title: dayLabel(d.date) + " " + RS(d.sales), "aria-hidden": "true" }, kids);
+    }));
 }
 
 V.home = () => {
@@ -124,18 +134,27 @@ V.home = () => {
       root.append(staleN("ov"));
       const y = ov.last7.length > 1 ? ov.last7[ov.last7.length - 2].sales : 0;
       const vs = y > 0 ? (ov.sales >= y ? "▲ " : "▼ ") + Math.abs(Math.round(((ov.sales - y) / y) * 100)) + "% vs yesterday" : "No sales yesterday to compare";
+      const R = (init) => () => openReport(init);
       root.append(h("div", { class: "tiles" },
-        tile("Sales today", RS(ov.sales), vs), tile("Bills paid", String(ov.bills), "since opening"), tile("Average bill", RS(ov.avg_bill), ov.bills ? "per paid bill" : "no bills yet"),
-        tile("Open online orders", String(ov.open_online), ov.new_online ? ov.new_online + " new, not accepted" : "none waiting", ov.new_online ? "attn" : ""), tile("To collect", RS(ov.to_collect), "cash or UPI on delivery/pickup"), tile("Open counter bills", String(ov.open_counter), "not paid yet")));
+        tile("Sales today", RS(ov.sales), vs, "", R({ by: "hour" })), tile("Bills paid", String(ov.bills), "since opening", "", R({ by: "type", measure: "orders" })), tile("Average bill", RS(ov.avg_bill), ov.bills ? "per paid bill" : "no bills yet", "", R({ by: "channel", measure: "avg_bill" })),
+        tile("Open online orders", String(ov.open_online), ov.new_online ? ov.new_online + " new, not accepted" : "none waiting", ov.new_online ? "attn" : "", can("orders.view") ? "ord" : null),
+        tile("To collect", RS(ov.to_collect), "cash or UPI on delivery/pickup", "", can("orders.view") ? "ord" : null), tile("Open counter bills", String(ov.open_counter), "not paid yet", "", can("bills.view") ? "pos" : null)));
       const tot = ov.by_channel.online + ov.by_channel.pos;
+      const chan = (key, label) => R({ by: "type", filters: [{ dim: "channel", value: key, label }] });
       root.append(h("div", { class: "grid g21", style: "margin-top:14px" },
-        h("div", { class: "card" }, h("h3", null, "Last 7 days"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Sales collected, after refunds · business date " + ov.date), ov.last7.some((d) => d.sales) ? bars7(ov.last7) : emptyN("No sales in the last 7 days", "Paid bills will appear here.")),
-        h("div", { class: "card" }, h("h3", null, "Best sellers today"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Dishes sold, by quantity"), ov.top_items.length ? listBars(ov.top_items.map((t) => ({ label: t.name, v: t.qty })), (v) => v + " sold") : emptyN("Nothing sold yet today"))));
+        h("div", { class: "card" }, h("h3", null, "Last 7 days"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Sales collected, after refunds · business date " + ov.date + " · click a day for its hours"),
+          ov.last7.some((d) => d.sales) ? bars7(ov.last7, (d) => openReport({ from: d.date, to: d.date, by: "hour" })) : emptyN("No sales in the last 7 days", "Paid bills will appear here."),
+          h("div", { style: "margin-top:12px" }, on(btnN("Analyse the last 7 days", {}, "sm"), R({ preset: "7d", by: "day" })))),
+        h("div", { class: "card" }, h("h3", null, "Best sellers today"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Dishes sold, by quantity · click one for its details"),
+          ov.top_items.length ? listBars(ov.top_items.map((t) => ({ label: t.name, v: t.qty, go: R({ by: "hour", filters: [{ dim: "item", value: t.name, label: t.name }], measure: "items" }) })), (v) => v + " sold") : emptyN("Nothing sold yet today"))));
       root.append(h("div", { class: "grid g2", style: "margin-top:14px" },
-        h("div", { class: "card" }, h("h3", null, "Online vs counter"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Share of today's sales"), tot ? listBars([{ label: "Online", v: ov.by_channel.online, note: Math.round((ov.by_channel.online / tot) * 100) + "%" }, { label: "Counter", v: ov.by_channel.pos, note: Math.round((ov.by_channel.pos / tot) * 100) + "%" }], RS) : emptyN("No sales yet today")),
-        h("div", { class: "card" }, h("h3", null, "How customers paid"), h("div", { class: "sub", style: "margin-bottom:10px" }, "After refunds"), Object.keys(ov.by_mode).length ? listBars(Object.entries(ov.by_mode).map(([k, v]) => ({ label: cap(k), v: Math.max(0, v) })), RS) : emptyN("No payments yet today"))));
+        h("div", { class: "card" }, h("h3", null, "Online vs counter"), h("div", { class: "sub", style: "margin-bottom:10px" }, "Share of today's sales · click one to go deeper"),
+          tot ? listBars([{ label: "Online", v: ov.by_channel.online, note: Math.round((ov.by_channel.online / tot) * 100) + "%", go: chan("online", "Online orders") }, { label: "Counter", v: ov.by_channel.pos, note: Math.round((ov.by_channel.pos / tot) * 100) + "%", go: chan("counter", "Counter") }], RS) : emptyN("No sales yet today")),
+        h("div", { class: "card" }, h("h3", null, "How customers paid"), h("div", { class: "sub", style: "margin-bottom:10px" }, "After refunds · click one to go deeper"),
+          Object.keys(ov.by_mode).length ? listBars(Object.entries(ov.by_mode).map(([k, v]) => ({ label: cap(k), v: Math.max(0, v), go: R({ by: "type", filters: [{ dim: "payment_mode", value: k, label: cap(k) }] }) })), RS) : emptyN("No payments yet today"))));
       const d = slotData("day", null);
-      if (d) root.append(h("div", { class: "grid g3", style: "margin-top:14px" }, tile("Discounts given", RS(d.discounts)), tile("Refunds", RS(d.refunds)), tile("Voided bills", String(d.voided_bills))));
+      if (d) root.append(h("div", { class: "grid g3", style: "margin-top:14px" }, tile("Discounts given", RS(d.discounts), "", "", R({ by: "coupon", measure: "discount" })), tile("Refunds", RS(d.refunds), "", "", R({ by: "payment_mode", measure: "orders", filters: [{ dim: "status", value: "refunded", label: "Refunded" }], showBills: true })),
+        tile("Voided bills", String(d.voided_bills), "", "", R({ by: "type", measure: "orders", scope: "all", filters: [{ dim: "status", value: "void", label: "Void" }], showBills: true }))));
     } else root.append(h("div", { class: "sub", style: "padding:24px" }, "Loading…"));
   } else {
     const openPos = slotData("openpos", []);
@@ -144,7 +163,7 @@ V.home = () => {
       tile("To collect (online)", RS(open.reduce((a, r) => a + Math.max(0, r.balance), 0)), "cash or UPI on delivery/pickup"), tile("Open counter bills", String(openPos.length), "not paid yet")));
     root.append(h("div", { class: "row", style: "margin-top:14px" }, btnN("Orders", { "data-go": "ord" }, "pri"), can("bills.create") ? btnN("Open POS", { "data-go": "pos" }) : null));
   }
-  root.append(h("div", { class: "sample-flag", style: "margin-top:18px" }, "Social, ads, traffic, WhatsApp, queue and reports pages are still design previews with made-up numbers until each is connected."));
+  root.append(h("div", { class: "sample-flag", style: "margin-top:18px" }, "Social, ads, traffic, WhatsApp and queue pages are still design previews with made-up numbers until each is connected."));
   return root;
 };
 
