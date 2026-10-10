@@ -1,0 +1,11 @@
+{
+  "appId": "com.nova.delivery",
+  "appName": "Nova Delivery",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
