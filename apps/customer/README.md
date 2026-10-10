@@ -55,9 +55,18 @@ cd android && ./gradlew assembleRelease     # or bundleRelease for the Play Stor
 
 What is committed: the generated `android/` project (appId `com.nova.customer`, app name "Restaurant", location permission for "Use my location"). What is never committed: `google-services.json`, keystores (`*.jks`, `*.keystore`), `keystore.properties`, passwords, `local.properties`. `apps/customer/.gitignore` enforces it.
 
+## Online payment (Razorpay)
+
+Flow: `POST /v2/me/orders {payment:"online"}` returns `status:"pending_payment"` and `payment.checkout {provider, order_id, key_id, amount}`. The tracking screen then loads `https://checkout.razorpay.com/v1/checkout.js` on demand (once) and opens the window. On success the three Razorpay values go to `POST /v2/me/orders/{id}/payment`. Closing the window or a failed payment keeps the order pending and shows "Payment not completed" with "Try again" (same Razorpay order id) and "Cancel order". An unpaid order can be paid for 20 minutes; after that the server cancels it and the app shows "Expired". If the confirm call fails with a network error the app polls the order for 60 s (the server webhook may confirm it) and then shows "We are checking your payment". A cancelled paid order shows "Refund of Rs X is on its way". No payment value is stored or logged by the app.
+
+### Android (Capacitor) notes
+- Razorpay checkout runs inside the Capacitor WebView like on the web; there is no native Razorpay plugin. UPI apps are reached through Razorpay's own intent/redirect handling inside the window.
+- The WebView loads the app from `https://localhost`, so it must be allowed to load `https://checkout.razorpay.com` (script) and open `https://api.razorpay.com` (frames and XHR) and `https://*.razorpay.com`/`https://cdn.razorpay.com` (assets). If you add `server.allowNavigation` or a CSP, include: `checkout.razorpay.com`, `api.razorpay.com`, `*.razorpay.com`, `cdn.razorpay.com`, `lumberjack.razorpay.com`, and the bank/3-D Secure pages that open in the window (these vary by bank; test with real cards). `capacitor.config.json` currently has no navigation restriction, so no change is needed.
+- Test on a real phone (release build, not only the emulator): pay by UPI with an installed UPI app (the app switch and return); pay by test card including the 3-D Secure page; close the window with the back button (should show "Payment not completed"); pay, then switch app / lose signal during confirmation and re-open (the order should turn Placed); the Pay now button from the Orders list; cancel a paid order and see the refund text; sign-in code arriving on WhatsApp; hardware back inside the checkout window.
+
 ## Behaviour notes
 
-- Orders are cash or UPI on delivery / at the counter (`storefront.payments.online` is false). Each placement attempt carries an `Idempotency-Key`; the key is reused if the same cart is retried after a network failure and replaced when the cart, address or coupon changes.
+- Checkout offers "Pay now (UPI, card, netbanking)" when `storefront.payments.online` is true and "Pay on delivery / at the counter" when `storefront.payments.cod` is true; with one option it is shown as plain text. The WhatsApp tick box ("Send my order updates on WhatsApp", on by default) is sent as `whatsapp_updates`. Each placement attempt carries an `Idempotency-Key`; the key is reused if the same cart is retried after a network failure and replaced when the cart, address or coupon changes.
 - Delivery distance is checked from coordinates. When the restaurant has an origin and a radius, the customer must tap "Use my location" (or pick a saved address that has coordinates); the API answers `LOCATION_REQUIRED` otherwise.
 - Customer token: `localStorage["nova.customer.<code>"]`. Any 401 clears it and signs the customer out.
 - `debug_otp` is only used to pre-fill the code when the API response contains it (development servers).
