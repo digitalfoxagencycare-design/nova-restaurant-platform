@@ -6,8 +6,8 @@ from fastapi import HTTPException
 class ApiError(HTTPException):
     """HTTP error with a stable machine-readable code (clients localise by code)."""
 
-    def __init__(self, status: int, code: str, message: str):
-        super().__init__(status_code=status, detail={"code": code, "message": message})
+    def __init__(self, status: int, code: str, message: str, **extra):
+        super().__init__(status_code=status, detail={"code": code, "message": message, **extra})
 
 
 def unauthorized(msg="Not authenticated"):

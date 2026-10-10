@@ -4,6 +4,240 @@
   "type": "object",
   "required": ["slug", "brand", "locale", "tax", "operations"],
   "properties": {
+    "pos": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12
+          },
+          "maxItems": 200,
+          "uniqueItems": true
+        },
+        "printers": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "profile",
+              "for"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]{1,24}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 60
+              },
+              "profile": {
+                "enum": [
+                  "tvs-rp3200",
+                  "tvs-rp3160",
+                  "generic-80",
+                  "generic-58"
+                ]
+              },
+              "for": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "receipt",
+                    "kot"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "station": {
+                "type": "string",
+                "maxLength": 24
+              },
+              "windows_name": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "Exact printer name on the cashier PC; blank = agent auto-detects a thermal printer"
+              },
+              "cols": {
+                "type": "integer",
+                "minimum": 24,
+                "maximum": 64
+              },
+              "cash_drawer": {
+                "type": "boolean"
+              },
+              "copies": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              }
+            }
+          }
+        },
+        "receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "header_lines": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "string",
+                "maxLength": 48
+              }
+            },
+            "footer_lines": {
+              "type": "array",
+              "maxItems": 4,
+              "items": {
+                "type": "string",
+                "maxLength": 48
+              }
+            },
+            "gstin": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "show_tax_breakup": {
+              "type": "boolean"
+            },
+            "show_powered_by": {
+              "type": "boolean"
+            }
+          }
+        },
+        "roles": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "manager",
+              "cashier",
+              "captain",
+              "kitchen",
+              "viewer"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "grant": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "bills.view",
+                    "bills.create",
+                    "bills.edit",
+                    "bills.void_item",
+                    "bills.discount",
+                    "bills.discount.override",
+                    "bills.split",
+                    "bills.pay",
+                    "bills.print",
+                    "bills.reprint",
+                    "bills.void",
+                    "bills.reopen",
+                    "bills.refund",
+                    "menu.view",
+                    "menu.edit",
+                    "menu.stock",
+                    "kitchen.view",
+                    "kitchen.update",
+                    "reports.view",
+                    "tables.edit"
+                  ]
+                }
+              },
+              "revoke": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "bills.view",
+                    "bills.create",
+                    "bills.edit",
+                    "bills.void_item",
+                    "bills.discount",
+                    "bills.discount.override",
+                    "bills.split",
+                    "bills.pay",
+                    "bills.print",
+                    "bills.reprint",
+                    "bills.void",
+                    "bills.reopen",
+                    "bills.refund",
+                    "menu.view",
+                    "menu.edit",
+                    "menu.stock",
+                    "kitchen.view",
+                    "kitchen.update",
+                    "reports.view",
+                    "tables.edit"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "discount_max_pct": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "refund_max_paise": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "reopen_window_minutes": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "reasons_required": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "void",
+              "void_item",
+              "refund",
+              "reopen",
+              "discount"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
     "slug": { "type": "string", "pattern": "^[a-z0-9-]{3,40}$" },
     "brand": {
       "type": "object",

@@ -1,0 +1,29 @@
+const $=(s,r=document)=>r.querySelector(s);
+const INR=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+const K=n=>n>=1e5?(n/1e5).toFixed(1)+"L":n>=1e3?(n/1e3).toFixed(1)+"k":String(n);
+const ic=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const I={home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',pos:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/>',kds:'<path d="M6 14a4 4 0 1 1 2-7 4 4 0 0 1 8 0 4 4 0 1 1 2 7v5H6z"/>',ord:'<path d="M4 6h16M4 12h16M4 18h10"/>',q:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M17 7h4M17 11h4"/>',tab:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v7h-3"/>',cus:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',off:'<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/>',menu:'<path d="M7 3v8M11 3v8M9 11v10M17 3c-2 2-2 6 0 8v10"/>',stf:'<path d="M12 3l8 3v6c0 5-3 8-8 9-5-1-8-4-8-9V6z"/>',soc:'<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 11l7.6-4M8.2 13l7.6 4"/>',ads:'<path d="M3 11v2l13 5V6zM16 9a3 3 0 0 1 0 6M6 14v5"/>',trf:'<path d="M3 17l6-6 4 4 8-9M15 6h6v6"/>',wa:'<path d="M4 20l1.5-4A8 8 0 1 1 8 19z"/>',rep:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',con:'<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/>'};
+const NAV=[["Command",[["home","Overview","home"]]],["Service",[["pos","POS & Billing","pos"],["kds","Kitchen screen","kds"],["ord","Live orders","ord"],["q","Queue","q"],["tab","Tables & QR","tab"]]],["Business",[["cus","Customer CRM","cus"],["off","Offers engine","off"],["menu","Menu","menu"],["stf","Staff","stf"]]],["Growth",[["soc","Social","soc"],["ads","Ads & spend","ads"],["trf","Traffic","trf"],["wa","WhatsApp","wa"],["rep","Reports","rep"]]],["Setup",[["rules","Rules & printers","con"],["con","Connections","con"]]]];
+const LIVE=new Set(["home","pos","kds","ord","menu","rules"]);
+const PAGES={};NAV.forEach(g=>g[1].forEach(p=>PAGES[p[0]]={t:p[1],i:p[2]}));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const RS=p=>{const v=(p||0)/100;return "₹"+(Number.isInteger(v)?v.toLocaleString("en-IN"):v.toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2}))};
+const PAISE=r=>Math.round(parseFloat(r||0)*100);
+const toast=(m,ms=2600)=>{let c=document.getElementById("toasts");if(!c){c=document.createElement("div");c.id="toasts";c.setAttribute("aria-live","polite");document.body.append(c)}const t=document.createElement("div");t.className="toast";t.textContent=m;c.append(t);setTimeout(()=>t.remove(),ms)};
+const SAMPLE=()=>toast("Not connected yet: this part is still a design preview");
+/* sample data */
+const rnd=(a,i)=>Math.abs(Math.sin(a*91.7+i*13.3))
+const days=n=>Array.from({length:n},(_,i)=>{const w=[.9,.8,.85,.95,1.15,1.45,1.35][i%7];const rev=Math.round((24000+rnd(3,i)*9000+i*380)*w);const ad=Math.round(rev*(.1+rnd(5,i)*.05));return{rev,ad,ord:Math.round(rev/390)}});
+const CH=[["ig","IG","Instagram"],["fb","f","Facebook"],["gg","G","Google"],["yt","▶","YouTube"],["wa","W","WhatsApp"]];
+/* components */
+const kpi=(l,v,d,good=true,sp)=>`<div class="card kpi"><small>${l}</small><strong>${v}</strong><span class="delta ${good?"up":"dn"}">${d}</span>${sp?`<div style="margin-top:8px">${line([{d:sp,c:"var(--lime)"}],{h:38,w:200,grid:false,dot:false,label:"Trend"})}</div>`:""}</div>`;
+const pill=(t,k="mute")=>`<span class="pill p-${k}">${t}</span>`;
+const head=(e,t,acts="",live=false)=>`<div class="head"><div><div class="eyebrow">${live?"<i></i>":""}${e}</div><h1>${t}</h1></div><div class="sp"></div>${acts}</div>`;
+const act=(t,pri)=>`<button class="btn ${pri?"pri":""} sm" data-sample>${t}</button>`;
+function line(series,o={}){const w=o.w||640,h=o.h||200,pad=o.grid===false?2:30,all=series.flatMap(s=>s.d),mx=Math.max(...all)*1.08,n=series[0].d.length;const X=i=>pad+(w-pad-6)*i/(n-1),Y=v=>h-pad+2-(h-pad*1.2)*v/mx;let g="";if(o.grid!==false){for(let k=0;k<=4;k++){const y=Y(mx*k/4);g+=`<line x1="${pad}" x2="${w-6}" y1="${y}" y2="${y}" style="stroke:var(--line)"/><text x="0" y="${y+3}" style="fill:var(--soft)" font-size="9" font-family="JetBrains Mono">${K(Math.round(mx*k/4))}</text>`}}
+const body=series.map((s,si)=>{const pts=s.d.map((v,i)=>[X(i),Y(v)]);const p=pts.map((q,i)=>(i?"L":"M")+q[0].toFixed(1)+" "+q[1].toFixed(1)).join("");const last=pts[pts.length-1];return(si===0&&o.area!==false?`<path d="${p}L${last[0]} ${h-pad+2}L${pad} ${h-pad+2}Z" style="fill:${s.c};opacity:.12"/>`:"")+`<path d="${p}" fill="none" stroke-width="2.2" stroke-linejoin="round" style="stroke:${s.c}"/>`+(o.dot===false?"":`<circle cx="${last[0]}" cy="${last[1]}" r="4" style="fill:${s.c}"/>`)}).join("");
+return`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${o.label||"Trend chart"}">${g}${body}</svg>`}
+const bars=(rows,fmt=INR)=>{const mx=Math.max(...rows.map(r=>r[1]));return rows.map(r=>`<div style="margin:10px 0"><div class="row sb"><span class="row">${r[2]||""}${r[0]}</span><span class="mono">${fmt(r[1])}</span></div><div class="bar" style="margin-top:5px"><i style="width:${r[1]/mx*100}%"></i></div></div>`).join("")};
+const chb=c=>{const x=CH.find(a=>a[0]===c)||["web","↗"];return`<span class="ch ${c}">${x[1]}</span>`};
+const tbl=(cols,rows)=>`<div class="tw"><table><thead><tr>${cols.map((c,i)=>`<th class="${c[1]?"r":""}">${c[0]}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${cols[i][1]?"r mono":""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+const sw=(on,id)=>`<button class="sw" role="switch" aria-checked="${on}" data-sw="${id||""}"></button>`;
