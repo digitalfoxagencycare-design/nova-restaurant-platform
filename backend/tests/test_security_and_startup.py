@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import jwt
 import pytest
+from cryptography.fernet import Fernet
 
 from nova.core.config import Settings
 from nova.core.security import (
@@ -20,7 +21,8 @@ STRONG = "x" * 10 + "Y9"
 
 
 def prod(**kw):
-    base = dict(env="production", mongo_url="mongodb+srv://u:p@cluster.example.net/db", allowed_origins=["https://app.nova.example"])
+    base = dict(env="production", mongo_url="mongodb+srv://u:p@cluster.example.net/db", allowed_origins=["https://app.nova.example"],
+                secrets_key=Fernet.generate_key().decode(), public_base_url="https://order.nova.example")
     base.update(kw)
     return make_settings(**base)
 
@@ -112,3 +114,8 @@ def test_settings_parse_env_strings(monkeypatch):
     monkeypatch.setenv("ALLOWED_ORIGINS", "https://a.example, https://b.example")
     s = Settings()
     assert s.jwt_keys["a"].startswith("z") and s.allowed_origins == ["https://a.example", "https://b.example"]
+
+
+def test_production_needs_a_secrets_key_and_an_https_public_address():
+    problems = check_settings(prod(secrets_key="", public_base_url="http://order.nova.example"))
+    assert any("SECRETS_KEY" in p for p in problems) and any("PUBLIC_BASE_URL" in p for p in problems)
