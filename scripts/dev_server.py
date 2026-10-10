@@ -21,17 +21,23 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import email_validator  # noqa: E402
+import httpx  # noqa: E402
+from cryptography.fernet import Fernet  # noqa: E402
 import uvicorn  # noqa: E402
 from mongomock_motor import AsyncMongoMockClient  # noqa: E402
 
 from nova.app import create_app  # noqa: E402
 from nova.core.config import Settings  # noqa: E402
-from nova.services import auth, online  # noqa: E402
+from nova.services import auth, online, payments  # noqa: E402
+from nova.services import secrets as secrets_svc  # noqa: E402
 from nova.services import tenants as tenant_svc  # noqa: E402
 from nova.tenancy.db import PlatformDB, TenantDB  # noqa: E402
 
 email_validator.TEST_ENVIRONMENT = True      # dev only: lets the reserved .test domain through the e-mail check
 SLUG = "demo-biryani"
+RZP_KEY_ID = "rzp_test_demo000000001"   # scan-secrets: allow
+RZP_KEY = "dev-razorpay-key-0001"
+RZP_HOOK = "dev-razorpay-hook-0001"
 DEMO_PW = os.environ.get("DEMO_PW", "Demo-Pass-2026")
 USERS = [("owner@demo.test", "owner", "Asha Owner"), ("manager@demo.test", "manager", "Manoj Manager"), ("cashier@demo.test", "cashier", "Charan Cashier"),
          ("kitchen@demo.test", "kitchen", "Kiran Kitchen"), ("rider@demo.test", "delivery", "Ravi Rider"), ("rider2@demo.test", "delivery", "Rahul Rider")]
@@ -51,11 +57,35 @@ MENU = [
 ]
 
 
+class FakeOutside:
+    """Stands in for Meta's WhatsApp API and for Razorpay so the whole product can be tried locally. Sent WhatsApp messages are printed."""
+
+    def __init__(self):
+        self.n = 0
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        url, body = str(request.url), (json.loads(request.content) if request.content else {})
+        if "graph.facebook.com" in url:
+            t = body.get("template", {})
+            params = [p.get("text") for c in t.get("components", []) for p in c.get("parameters", [])]
+            print(f"  [WhatsApp -> {body.get('to')}] {t.get('name')}: {params}", flush=True)
+            return httpx.Response(200, json={"messages": [{"id": "wamid.DEV"}]})
+        if url.endswith("/v1/orders"):
+            self.n += 1
+            return httpx.Response(200, json={"id": f"order_DEV{self.n:05d}", "amount": body["amount"]})
+        if "/refund" in url:
+            print(f"  [Razorpay refund] {url.split('/')[-2]} amount={body.get('amount')}", flush=True)
+            return httpx.Response(200, json={"id": "rfnd_DEV"})
+        return httpx.Response(404, json={})
+
+
 async def seed(app) -> None:
     db = app.state.database
     s: Settings = app.state.settings
     pdb = PlatformDB(db)
     await auth.create_platform_admin(pdb, "root@nova.test", DEMO_PW)
+    await pdb.platform_settings.update_one({"key": "whatsapp"}, {"$set": {"key": "whatsapp", "phone_number_id": "100000000000001", "waba_id": "200000000000001"}}, upsert=True)
+    await secrets_svc.put(pdb, s, "platform", "whatsapp.access_token", "dev-whatsapp-token-0001", "dev")
     cfg = copy.deepcopy(json.loads((ROOT / "config" / "tenants" / "hyderabadi-irani.example.json").read_text()))
     cfg["slug"], cfg["brand"]["name"] = SLUG, "Demo Biryani House"
     cfg["brand"]["legal_name"] = "Demo Biryani House LLP"
@@ -71,8 +101,11 @@ async def seed(app) -> None:
     cfg["payments"]["cod"] = {"enabled": True}
     cfg["pos"] = {"tables": [f"T-{i:02d}" for i in range(1, 13)]}
     cfg["integrations"]["razorpay"]["secret_ref"] = f"secrets/{SLUG}/razorpay"
+    cfg["payments"]["methods"] = ["cash", "card", "upi", "cod", "razorpay"]
     tenant, owner_token = await tenant_svc.create_tenant(pdb, lambda tid: TenantDB(db, tid), s, cfg, USERS[0][0])
     tdb = TenantDB(db, tenant["_id"])
+    for name, val in (("razorpay.key_id", RZP_KEY_ID), ("razorpay.key_secret", RZP_KEY), ("razorpay.webhook_secret", RZP_HOOK)):
+        await secrets_svc.put(pdb, s, tenant["_id"], name, val, "dev")
     await auth.accept_invite(tdb, owner_token, DEMO_PW)
     await tdb.users.update_one({"email": USERS[0][0]}, {"$set": {"name": USERS[0][2]}})
     for email, role, name in USERS[1:]:
@@ -90,10 +123,11 @@ async def seed(app) -> None:
     await online.place_order(tdb, tenant["config"], cust, {"type": "takeaway", "items": [{"item_id": items["Chicken Dum Biryani"], "qty": 2}, {"item_id": items["Irani Chai"], "qty": 2}]}, None)
     await online.place_order(tdb, tenant["config"], cust, {"type": "delivery", "items": [{"item_id": items["Butter Chicken"], "qty": 1}, {"item_id": items["Garlic Naan"], "qty": 3}],
                                                            "address": {"text": "Flat 4B, Jubilee Hills Road 36, Hyderabad", "lat": 17.4300, "lng": 78.4100}}, None)
-    print(f"\n  Restaurant code: {SLUG}\n  Logins (password for all: {DEMO_PW}):")
+    print(f"\n  Restaurant code: {SLUG}\n  Nova console login: root@nova.test (platform admin)\n  Logins (password for all: {DEMO_PW}):")
     for email, role, _ in USERS:
         print(f"    {role:<9} {email}")
-    print("  Customer sign-in: any 10-digit mobile starting 6-9; the code is returned in the response (debug_otp).\n")
+    print("  Customer sign-in: any 10-digit mobile starting 6-9. debug_otp is returned in the response AND the WhatsApp message is printed here.")
+    print("  Online payment is on for the demo restaurant: POST /dev/razorpay/pay {order_id} returns a valid payment signature.\n")
 
 
 def build():
@@ -102,8 +136,17 @@ def build():
     origins = [f"http://{h}:{p}" for h in ("localhost", "127.0.0.1") for p in range(3000, 3011)]
     origins += [f"http://{h}:{p}" for h in ("localhost", "127.0.0.1") for p in range(4170, 4190)] + ["capacitor://localhost", "https://localhost", "http://localhost"]
     key = secrets.token_urlsafe(48)
-    settings = Settings(env="development", jwt_keys={"dev": key}, jwt_active_kid="dev", allowed_origins=origins, db_name="dev", debug_otp=True)
-    app = create_app(settings, AsyncMongoMockClient()["dev"])
+    port = int(os.environ.get("PORT", "8000"))
+    settings = Settings(env="development", jwt_keys={"dev": key}, jwt_active_kid="dev", allowed_origins=origins, db_name="dev", debug_otp=True,
+                        secrets_key=Fernet.generate_key().decode(), public_base_url=f"http://127.0.0.1:{port}")
+    app = create_app(settings, AsyncMongoMockClient()["dev"], http=httpx.AsyncClient(transport=httpx.MockTransport(FakeOutside().handler)))
+
+    @app.post("/dev/razorpay/pay", include_in_schema=False)
+    async def dev_pay(body: dict):
+        """Stands in for Razorpay's checkout window: returns what the real one would hand back after a successful payment."""
+        oid = str(body.get("order_id", ""))
+        pid = "pay_DEV" + oid[-5:]
+        return {"razorpay_order_id": oid, "razorpay_payment_id": pid, "razorpay_signature": payments.sign(oid, pid, RZP_KEY)}
     inner = app.router.lifespan_context
 
     @asynccontextmanager

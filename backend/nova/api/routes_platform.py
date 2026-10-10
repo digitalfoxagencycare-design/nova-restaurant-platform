@@ -40,12 +40,7 @@ async def create_tenant(
 ):
     tenant, token = await tenant_svc.create_tenant(pdb, lambda tid: tenant_db_for(request, tid), s, body.config, body.owner_email, body.plan)
     await platform_audit(pdb, p.email, "tenant.create", tenant["_id"], {"slug": tenant["slug"]})
-    return {"id": tenant["_id"], "slug": tenant["slug"], "owner_invite_token": token}
-
-
-@router.get("/tenants")
-async def list_tenants(pdb: PlatformDB = Depends(get_platform_db), p: Principal = Depends(require_permission("platform.tenants.view"))):
-    return [{"id": t["_id"], "slug": t["slug"], "status": t["status"], "plan": t["plan"]} async for t in pdb.tenants.find({})]
+    return {"id": tenant["_id"], "slug": tenant["slug"], "owner_invite_token": token, "invite_expires_hours": s.invite_ttl_hours}
 
 
 @router.post("/tenants/{tenant_id}/suspend", status_code=204)
